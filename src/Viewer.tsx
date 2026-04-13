@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Comark } from '@comark/react'
+import { ComarkClient } from '@comark/react'
 import mermaid from '@comark/react/plugins/mermaid'
 import { Mermaid } from '@comark/react/plugins/mermaid'
 import highlight from '@comark/react/plugins/highlight'
@@ -54,9 +54,9 @@ export default function Viewer() {
         </button>
       </div>
       <div className="viewer-content">
-        <Comark plugins={plugins} components={components}>
+        <ComarkClient plugins={plugins} components={components}>
           {content}
-        </Comark>
+        </ComarkClient>
       </div>
     </div>
   )

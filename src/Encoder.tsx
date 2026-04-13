@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Comark } from '@comark/react'
+import { ComarkClient } from '@comark/react'
 import mermaid from '@comark/react/plugins/mermaid'
 import { Mermaid } from '@comark/react/plugins/mermaid'
 import highlight from '@comark/react/plugins/highlight'
@@ -89,9 +89,9 @@ export default function Encoder() {
           />
         </div>
         <div className="encoder-preview">
-          <Comark plugins={plugins} components={components}>
+          <ComarkClient plugins={plugins} components={components}>
             {markdown}
-          </Comark>
+          </ComarkClient>
         </div>
       </div>
       <div className="encoder-footer">
