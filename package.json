@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "build:skill": "esbuild skills/share-diagram/scripts/encode.src.mjs --bundle --platform=node --format=esm --target=node22 --outfile=skills/share-diagram/scripts/encode.mjs --loader:.wasm=binary --banner:js='const require=(await import(\"node:module\")).createRequire(import.meta.url);'",
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run"
@@ -26,10 +27,12 @@
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.1",
+    "esbuild": "^0.28.0",
     "eslint": "^9.39.4",
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.5.2",
     "globals": "^17.4.0",
+    "jazz-run": "^0.20.17",
     "jsdom": "^29.0.2",
     "typescript": "~6.0.2",
     "typescript-eslint": "^8.58.0",

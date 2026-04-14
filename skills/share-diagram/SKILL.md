@@ -78,5 +78,5 @@ sequenceDiagram
 
 ## Notes
 
-- The script requires `jazz-tools` to be installed at the repo root (already a dep of the app).
-- Each run creates a fresh Jazz account, so documents shared this way cannot be edited later via the web UI.
+- `encode.mjs` is a self-contained bundle with all dependencies inlined — it runs standalone with `node`, no `npm install` needed. Source lives in `encode.src.mjs`; rebuild with `npm run build:skill` from the repo root.
+- Each run creates a fresh Jazz account on the fly, so documents shared this way cannot be edited later via the web UI.
