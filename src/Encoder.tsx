@@ -1,11 +1,12 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { ComarkClient } from '@comark/react'
 import mermaid from '@comark/react/plugins/mermaid'
 import { Mermaid } from '@comark/react/plugins/mermaid'
 import highlight from '@comark/react/plugins/highlight'
 import githubLight from '@shikijs/themes/github-light'
 import githubDark from '@shikijs/themes/github-dark'
-import { encodeToHash } from './lib/encode'
+import { Group, co } from 'jazz-tools'
+import { MarkdownDoc } from './lib/schema'
 
 const plugins = [
   mermaid(),
@@ -43,36 +44,45 @@ const handler = async (event: Event) => {
 \`\`\`
 `
 
-export default function Encoder() {
-  const [markdown, setMarkdown] = useState(defaultMarkdown)
-  const [url, setUrl] = useState('')
-  const [byteSize, setByteSize] = useState(0)
-  const [copied, setCopied] = useState(false)
+type LoadedDoc = co.loaded<typeof MarkdownDoc>
 
-  const generateUrl = useCallback(async (md: string) => {
-    try {
-      const hash = await encodeToHash(md)
-      const fullUrl = `${window.location.origin}${window.location.pathname}#${hash}`
-      setUrl(fullUrl)
-      setByteSize(new TextEncoder().encode(hash).length)
-    } catch {
-      setUrl('')
-      setByteSize(0)
-    }
-  }, [])
+export default function Encoder({ doc: initialDoc }: { doc?: LoadedDoc } = {}) {
+  const [doc, setDoc] = useState<LoadedDoc | null>(initialDoc ?? null)
+  const [markdown, setMarkdown] = useState(initialDoc?.content ?? defaultMarkdown)
+  const [copied, setCopied] = useState(false)
+  const createdRef = useRef(false)
 
   useEffect(() => {
-    const timeout = setTimeout(() => generateUrl(markdown), 300)
+    if (doc || createdRef.current) return
+    createdRef.current = true
+    const group = Group.create()
+    group.makePublic()
+    const newDoc = MarkdownDoc.create({ content: defaultMarkdown }, { owner: group })
+    setDoc(newDoc)
+    const url = new URL(window.location.href)
+    url.searchParams.set('id', newDoc.$jazz.id)
+    window.history.replaceState(null, '', url.toString())
+  }, [doc])
+
+  useEffect(() => {
+    if (!doc) return
+    if (markdown === doc.content) return
+    const timeout = setTimeout(() => {
+      doc.$jazz.set('content', markdown)
+    }, 300)
     return () => clearTimeout(timeout)
-  }, [markdown, generateUrl])
+  }, [markdown, doc])
+
+  const shareUrl = doc
+    ? `${window.location.origin}${window.location.pathname}?id=${doc.$jazz.id}`
+    : ''
 
   const handleCopy = async () => {
-    await navigator.clipboard.writeText(url)
+    if (!shareUrl) return
+    await navigator.clipboard.writeText(shareUrl)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
   }
-
-  const sizeColor = byteSize > 32000 ? '#cf222e' : byteSize > 20000 ? '#9a6700' : '#1a7f37'
 
   return (
     <div className="encoder">
@@ -95,14 +105,10 @@ export default function Encoder() {
         </div>
       </div>
       <div className="encoder-footer">
-        <span className="size-indicator" style={{ color: sizeColor }}>
-          URL size: {(byteSize / 1024).toFixed(1)} KB
-          {byteSize > 32000 && ' (may not work in all browsers)'}
-        </span>
         <button
           className="copy-btn"
           onClick={handleCopy}
-          disabled={!url}
+          disabled={!shareUrl}
         >
           {copied ? 'Copied!' : 'Copy Shareable URL'}
         </button>

@@ -27,8 +27,25 @@ vi.mock('@comark/react/plugins/highlight', () => ({
 vi.mock('@shikijs/themes/github-light', () => ({ default: {} }))
 vi.mock('@shikijs/themes/github-dark', () => ({ default: {} }))
 
-vi.mock('./lib/encode', () => ({
-  encodeToHash: vi.fn(async () => 'encoded-hash'),
+vi.mock('jazz-tools/react', () => ({
+  JazzReactProvider: ({ children }: { children: React.ReactNode }) => children,
+  useCoState: () => ({
+    $isLoaded: false,
+    $jazz: { loadingState: 'loading' },
+  }),
+}))
+
+vi.mock('jazz-tools', () => ({
+  co: {
+    map: () => ({
+      create: vi.fn(() => ({
+        content: '',
+        $jazz: { id: 'co_testdocid', set: vi.fn() },
+      })),
+    }),
+  },
+  z: { string: () => ({}) },
+  Group: { create: vi.fn(() => ({ makePublic: vi.fn() })) },
 }))
 
 Object.defineProperty(window, 'matchMedia', {
@@ -53,8 +70,8 @@ Object.defineProperty(navigator, 'clipboard', {
 })
 
 describe('App', () => {
-  test('renders the encoder without throwing in the client', async () => {
-    window.location.hash = ''
+  test('renders the encoder without throwing when no id is in the querystring', async () => {
+    window.history.replaceState(null, '', '/')
 
     render(<App />)
 
