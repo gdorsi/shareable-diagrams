@@ -45,6 +45,8 @@ body {
 .viewer-content img { max-width: 100%; }
 .viewer-content a { color: #0969da; text-decoration: none; }
 .viewer-content a:hover { text-decoration: underline; }
+.viewer-content .mermaid { height: auto !important; max-width: 100%; overflow-x: auto; margin: 0.5em 0 1em; }
+.viewer-content .mermaid svg { max-width: 100%; height: auto; }
 
 .share-btn, .copy-btn {
   background: #2da44e;
@@ -168,6 +170,8 @@ body {
 .encoder-preview img { max-width: 100%; }
 .encoder-preview a { color: #0969da; text-decoration: none; }
 .encoder-preview a:hover { text-decoration: underline; }
+.encoder-preview .mermaid { height: auto !important; max-width: 100%; overflow-x: auto; margin: 0.5em 0 1em; }
+.encoder-preview .mermaid svg { max-width: 100%; height: auto; }
 
 .encoder-footer {
   display: flex;
