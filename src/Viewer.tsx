@@ -17,6 +17,13 @@ const components = { mermaid: Mermaid }
 export default function Viewer() {
   const [content, setContent] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [copied, setCopied] = useState(false)
+
+  const handleCopy = async (text: string) => {
+    await navigator.clipboard.writeText(text)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
 
   useEffect(() => {
     const hash = window.location.hash.slice(1)
@@ -46,6 +53,12 @@ export default function Viewer() {
   return (
     <div className="viewer">
       <div className="viewer-toolbar">
+        <button
+          className="toolbar-btn"
+          onClick={() => handleCopy(content)}
+        >
+          {copied ? 'Copied!' : 'Copy Markdown'}
+        </button>
         <button
           className="share-btn"
           onClick={() => navigator.clipboard.writeText(window.location.href)}

@@ -20,6 +20,7 @@ body {
 .viewer-toolbar {
   display: flex;
   justify-content: flex-end;
+  gap: 8px;
   padding-bottom: 16px;
   border-bottom: 1px solid #d1d9e0;
   margin-bottom: 24px;
@@ -58,6 +59,21 @@ body {
 
 .share-btn:hover, .copy-btn:hover {
   background: #238636;
+}
+
+.toolbar-btn {
+  background: #fff;
+  color: #24292f;
+  border: 1px solid #d1d9e0;
+  padding: 8px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.toolbar-btn:hover {
+  background: #f6f8fa;
 }
 
 .copy-btn:disabled {
