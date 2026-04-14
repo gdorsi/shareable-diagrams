@@ -5,7 +5,7 @@ description: Generate shareable URLs for markdown documents with Mermaid diagram
 
 # Share Diagram
 
-Generate self-contained, shareable URLs for markdown documents with Mermaid diagrams.
+Generate shareable URLs for markdown documents with Mermaid diagrams.
 
 ## When to Use
 
@@ -16,7 +16,9 @@ Generate self-contained, shareable URLs for markdown documents with Mermaid diag
 
 ## How It Works
 
-The entire document is compressed (gzip) and encoded (base64url) into a URL hash fragment. The viewer app at `https://gdorsi.github.io/shareable-diagrams/` decodes and renders it with Comark (markdown) and Mermaid (diagrams). No server, no database — the document lives entirely in the URL.
+The markdown is stored as a Jazz CoValue on Jazz Cloud, owned by a public-readable group. The share URL carries only the CoValue id (`?id=co_xxx`). The viewer app at `https://gdorsi.github.io/shareable-diagrams/` loads the CoValue over WebSocket and renders it with Comark (markdown) and Mermaid (diagrams).
+
+URLs are short regardless of document size. Documents created via this script are read-only on the web (the creator account is ephemeral).
 
 ## Steps
 
@@ -24,7 +26,6 @@ The entire document is compressed (gzip) and encoded (base64url) into a URL hash
    - Start with an `# Title` heading
    - Use `## Section` headings for organization
    - Include Mermaid diagrams in fenced code blocks with the `mermaid` language tag
-   - Keep it concise — the encoded URL has practical limits (~32KB is safe)
 
 2. **Write the content to a temporary file:**
 
@@ -36,7 +37,7 @@ Write the markdown to a `.md` file in the project's temp directory or `/tmp/`.
 node skills/share-diagram/scripts/encode.mjs <path-to-file>
 ```
 
-For just the hash (no URL prefix):
+For just the CoValue id (no URL prefix):
 ```bash
 node skills/share-diagram/scripts/encode.mjs --raw <path-to-file>
 ```
@@ -46,11 +47,12 @@ Or pipe via stdin:
 cat <path-to-file> | node skills/share-diagram/scripts/encode.mjs
 ```
 
+The script connects to Jazz Cloud, creates a public-readable CoValue, waits for sync, and prints the URL.
+
 4. **Present the URL to the user.** Tell them:
    - Anyone with the URL can view the document
-   - No login or server required
-   - The document is embedded in the URL itself
-   - They can also visit https://gdorsi.github.io/shareable-diagrams/ to compose documents interactively
+   - The document is stored on Jazz Cloud and loads on open
+   - They can also visit https://gdorsi.github.io/shareable-diagrams/ to compose new documents interactively (those are editable from the creator's browser)
 
 ## Mermaid Diagram Examples
 
@@ -74,9 +76,7 @@ sequenceDiagram
 ```
 ````
 
-## Size Guidelines
+## Notes
 
-- Keep documents under ~10KB of raw markdown for reliable sharing
-- The gzip compression typically achieves 3-5x reduction
-- URL sizes above ~32KB may not work in all browsers or chat apps
-- If the document is too large, suggest splitting into multiple shared documents
+- The script requires `jazz-tools` to be installed at the repo root (already a dep of the app).
+- Each run creates a fresh Jazz account, so documents shared this way cannot be edited later via the web UI.
