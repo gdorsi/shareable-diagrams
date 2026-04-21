@@ -12156,26 +12156,43 @@ async function publishMarkdown({
 }) {
   const { createScriptDb: createDb2 = createScriptDb, issueGrantCode: issueGrantCodeFn = issueGrantCode } = deps;
   const { db, ownerId, config } = await createDb2();
-  const inserted = db.insert(shareableDiagramsApp.documents, {
-    ownerId,
-    content: markdown
-  }).value;
-  const shareUrl = `${config.shareBaseUrl}?id=${inserted.id}`;
-  const grantUrl = withGrant ? `${shareUrl}#grantCode=${await issueGrantCodeFn({ ownerId })}` : null;
-  return {
-    documentId: inserted.id,
-    shareUrl,
-    grantUrl,
-    rawOutput: raw ? inserted.id : shareUrl
-  };
+  try {
+    const inserted = await db.insertDurable(
+      shareableDiagramsApp.documents,
+      {
+        ownerId,
+        content: markdown
+      },
+      { tier: "global" }
+    );
+    const shareUrl = `${config.shareBaseUrl}?id=${inserted.id}`;
+    const grantUrl = withGrant ? `${shareUrl}#grantCode=${await issueGrantCodeFn({ ownerId })}` : null;
+    return {
+      documentId: inserted.id,
+      shareUrl,
+      grantUrl,
+      rawOutput: raw ? inserted.id : shareUrl
+    };
+  } finally {
+    if (typeof db.shutdown === "function") {
+      await db.shutdown();
+    }
+  }
 }
-async function main() {
-  const { markdown, raw, withGrant } = await readMarkdown();
-  const result = await publishMarkdown({ markdown, raw, withGrant });
-  process.stdout.write(`${result.rawOutput}
+async function main({
+  argv = process.argv.slice(2),
+  stdin = process.stdin,
+  stdout = process.stdout,
+  deps = {}
+} = {}) {
+  const readMarkdownFn = deps.readMarkdown ?? readMarkdown;
+  const publishMarkdownFn = deps.publishMarkdown ?? publishMarkdown;
+  const { markdown, raw, withGrant } = await readMarkdownFn(argv, stdin);
+  const result = await publishMarkdownFn({ markdown, raw, withGrant, deps });
+  stdout.write(`${result.rawOutput}
 `);
   if (result.grantUrl) {
-    process.stdout.write(`${result.grantUrl}
+    stdout.write(`${result.grantUrl}
 `);
   }
 }
