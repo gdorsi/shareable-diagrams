@@ -1,4 +1,5 @@
 import http from 'node:http'
+import { realpathSync } from 'node:fs'
 import { pathToFileURL } from 'node:url'
 import { createScriptDb } from './identity-store.src.mjs'
 import {
@@ -221,7 +222,7 @@ async function main() {
   process.stdout.write('grant server listening on http://127.0.0.1:43110\n')
 }
 
-if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url) {
+if (process.argv[1] && pathToFileURL(realpathSync(process.argv[1])).href === import.meta.url) {
   main().catch((error) => {
     process.stderr.write(`Error: ${error.stack ?? error.message ?? error}\n`)
     process.exit(1)

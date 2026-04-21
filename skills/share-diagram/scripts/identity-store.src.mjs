@@ -65,13 +65,20 @@ export async function loadOrCreateScriptSecret() {
   return secret
 }
 
+async function loadJazzWasmBinary() {
+  const mod = await import('jazz-wasm/pkg/jazz_wasm_bg.wasm')
+  return mod.default
+}
+
 export async function createScriptDb(env = process.env) {
   const config = resolveSharedConfig(env)
   const secret = await loadOrCreateScriptSecret()
+  const wasmSource = await loadJazzWasmBinary()
   const db = await createDb({
     appId: config.appId,
     serverUrl: config.serverUrl,
     secret,
+    runtimeSources: { wasmSource },
   })
   const ownerId = db.getAuthState().session?.user_id
 

@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs'
+import { readFileSync, realpathSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { shareableDiagramsApp } from '../../../src/lib/schema.ts'
@@ -83,7 +83,7 @@ export async function main({
   }
 }
 
-if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url) {
+if (process.argv[1] && pathToFileURL(realpathSync(process.argv[1])).href === import.meta.url) {
   main().catch((error) => {
     process.stderr.write(`Error: ${error.stack ?? error.message ?? error}\n`)
     process.exit(1)
