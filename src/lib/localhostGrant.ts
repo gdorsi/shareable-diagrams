@@ -18,7 +18,24 @@ export async function grantScriptDocumentAccess({
   })
 
   if (!response.ok) {
-    const payload = await response.json().catch(() => ({ error: 'grant request failed' }))
-    throw new Error(payload.error ?? 'grant request failed')
+    let message: string | undefined
+
+    const payload = await response.clone().json().catch(() => null)
+    if (payload && typeof payload === 'object') {
+      if (typeof payload.error === 'string' && payload.error.trim()) {
+        message = payload.error.trim()
+      } else if (typeof payload.message === 'string' && payload.message.trim()) {
+        message = payload.message.trim()
+      }
+    }
+
+    if (!message) {
+      const text = await response.text().catch(() => '')
+      if (text.trim()) {
+        message = text.trim()
+      }
+    }
+
+    throw new Error(message || response.statusText || 'grant request failed')
   }
 }

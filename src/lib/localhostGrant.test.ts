@@ -55,4 +55,45 @@ describe('grantScriptDocumentAccess', () => {
       }),
     ).rejects.toThrow('invalid grant code')
   })
+
+  test('falls back to the json message field on failure', async () => {
+    vi.stubGlobal(
+      'fetch',
+      fetchMock.mockResolvedValue(
+        new Response(JSON.stringify({ message: 'grant expired' }), {
+          status: 410,
+          headers: { 'content-type': 'application/json' },
+        }),
+      ),
+    )
+
+    await expect(
+      grantScriptDocumentAccess({
+        browserUserId: 'browser-user',
+        code: 'expired',
+        grantServiceUrl: 'http://127.0.0.1:43110',
+      }),
+    ).rejects.toThrow('grant expired')
+  })
+
+  test('falls back to response text when the failure body is not json', async () => {
+    vi.stubGlobal(
+      'fetch',
+      fetchMock.mockResolvedValue(
+        new Response('grant service unavailable', {
+          status: 503,
+          statusText: 'Service Unavailable',
+          headers: { 'content-type': 'text/plain' },
+        }),
+      ),
+    )
+
+    await expect(
+      grantScriptDocumentAccess({
+        browserUserId: 'browser-user',
+        code: 'bad',
+        grantServiceUrl: 'http://127.0.0.1:43110',
+      }),
+    ).rejects.toThrow('grant service unavailable')
+  })
 })
