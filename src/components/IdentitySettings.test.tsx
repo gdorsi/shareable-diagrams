@@ -55,8 +55,8 @@ describe('IdentitySettings', () => {
       />,
     )
 
-    expect(screen.queryByRole('button', { name: 'Back up passkey' })).toBeNull()
-    expect(screen.getByRole('button', { name: 'Restore passkey' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Save passkey' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Sign in' })).toBeTruthy()
   })
 
   test('shows the backup prompt when a secret exists', () => {
@@ -71,8 +71,8 @@ describe('IdentitySettings', () => {
       />,
     )
 
-    expect(screen.getByRole('button', { name: 'Back up passkey' })).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Restore passkey' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Save passkey' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Sign in' })).toBeTruthy()
   })
 
   test('disables both actions while a backup is in flight', async () => {
@@ -95,14 +95,14 @@ describe('IdentitySettings', () => {
       />,
     )
 
-    await userEvent.click(screen.getByRole('button', { name: 'Back up passkey' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Save passkey' }))
 
     await waitFor(() => {
       expect(
-        screen.getByRole('button', { name: 'Back up passkey' }) as HTMLButtonElement,
+        screen.getByRole('button', { name: 'Save passkey' }) as HTMLButtonElement,
       ).toHaveProperty('disabled', true)
       expect(
-        screen.getByRole('button', { name: 'Restore passkey' }) as HTMLButtonElement,
+        screen.getByRole('button', { name: 'Sign in' }) as HTMLButtonElement,
       ).toHaveProperty('disabled', true)
     })
 
@@ -126,14 +126,14 @@ describe('IdentitySettings', () => {
       />,
     )
 
-    await userEvent.click(screen.getByRole('button', { name: 'Back up passkey' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Save passkey' }))
 
     await waitFor(() => {
       expect(screen.getByText('Passkey backup saved')).toBeTruthy()
     })
 
-    expect(screen.queryByRole('button', { name: 'Back up passkey' })).toBeNull()
-    expect(screen.getByRole('button', { name: 'Restore passkey' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Save passkey' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Sign in' })).toBeTruthy()
   })
 
   test('shows an error when restore fails', async () => {
@@ -150,7 +150,7 @@ describe('IdentitySettings', () => {
       />,
     )
 
-    await userEvent.click(screen.getByRole('button', { name: 'Restore passkey' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Sign in' }))
 
     await waitFor(() => {
       expect(screen.getByText('Restore failed')).toBeTruthy()

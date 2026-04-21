@@ -8,7 +8,7 @@ import githubDark from '@shikijs/themes/github-dark'
 import { useDb, useSession } from 'jazz-tools/react'
 import { defaultMarkdown } from './lib/defaultMarkdown'
 import { shareableDiagramsApp } from './lib/schema'
-import { replaceDocumentId } from './lib/urlState'
+import { buildShareUrl, replaceDocumentId } from './lib/urlState'
 
 const plugins = [
   mermaid(),
@@ -56,9 +56,7 @@ export default function Encoder({ document }: { document?: DocumentRow } = {}) {
   }, [db, markdown, row])
 
   const currentRow = row ?? document
-  const shareUrl = currentRow
-    ? `${window.location.origin}${window.location.pathname}?id=${currentRow.id}`
-    : ''
+  const shareUrl = currentRow ? buildShareUrl(currentRow.id) : ''
 
   const getOrCreateRow = () => {
     if (currentRow) {
@@ -75,7 +73,7 @@ export default function Encoder({ document }: { document?: DocumentRow } = {}) {
     }).value as DocumentRow
 
     setRow(inserted)
-    replaceDocumentId(inserted.id)
+    replaceDocumentId(inserted.id, { edit: true })
 
     return inserted
   }
@@ -86,9 +84,7 @@ export default function Encoder({ document }: { document?: DocumentRow } = {}) {
       return
     }
 
-    await navigator.clipboard.writeText(
-      `${window.location.origin}${window.location.pathname}?id=${nextRow.id}`,
-    )
+    await navigator.clipboard.writeText(buildShareUrl(nextRow.id))
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
   }

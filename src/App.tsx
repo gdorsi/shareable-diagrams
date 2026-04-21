@@ -5,7 +5,13 @@ import IdentitySettings from './components/IdentitySettings'
 import Viewer from './Viewer'
 import { grantScriptDocumentAccess } from './lib/localhostGrant'
 import { shareableDiagramsApp } from './lib/schema'
-import { clearGrantCode, readDocumentId, readGrantCode } from './lib/urlState'
+import {
+  clearGrantCode,
+  pushEditMode,
+  readDocumentId,
+  readEditMode,
+  readGrantCode,
+} from './lib/urlState'
 
 type DocumentLocation = {
   hash: string
@@ -90,6 +96,7 @@ function AppBody({ auth }: AppProps) {
   }, [])
 
   const documentId = readDocumentId(location.search)
+  const editMode = readEditMode(location.search)
   const grantCode = readGrantCode(location.hash)
   const documents = useAll(
     documentId
@@ -196,7 +203,7 @@ function AppBody({ auth }: AppProps) {
     )
   }
 
-  if (document.$canEdit) {
+  if (document.$canEdit && editMode) {
     return (
       <>
         <IdentitySettings auth={auth} />
@@ -211,7 +218,10 @@ function AppBody({ auth }: AppProps) {
     )
   }
 
-  const canRequestGrant = Boolean(session && session.user_id !== document.ownerId)
+  const canEdit = Boolean(document.$canEdit)
+  const canRequestGrant = Boolean(
+    session && !canEdit && session.user_id !== document.ownerId,
+  )
   const activeGrantState =
     grantRequest.documentId === document.id ? grantRequest : null
   let viewerGrantStatus: GrantStatus = 'idle'
@@ -235,10 +245,13 @@ function AppBody({ auth }: AppProps) {
     <>
       <IdentitySettings auth={auth} />
       <Viewer
+        documentId={document.id}
         content={document.content}
+        canEdit={canEdit}
         canRequestGrant={canRequestGrant}
         grantStatus={viewerGrantStatus}
         grantError={viewerGrantError}
+        onEdit={() => pushEditMode(true)}
       />
     </>
   )

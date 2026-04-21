@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 
 import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import App from './App'
 
@@ -9,8 +10,10 @@ const {
   mockUseSession,
   mockIdentitySettings,
   mockReadDocumentId,
+  mockReadEditMode,
   mockReadGrantCode,
   mockClearGrantCode,
+  mockPushEditMode,
   mockGrantScriptDocumentAccess,
   whereSpy,
   selectSpy,
@@ -21,8 +24,10 @@ const {
   mockUseSession: vi.fn(),
   mockIdentitySettings: vi.fn(),
   mockReadDocumentId: vi.fn(),
+  mockReadEditMode: vi.fn(),
   mockReadGrantCode: vi.fn(),
   mockClearGrantCode: vi.fn(),
+  mockPushEditMode: vi.fn(),
   mockGrantScriptDocumentAccess: vi.fn(),
   whereSpy: vi.fn(),
   selectSpy: vi.fn(),
@@ -45,18 +50,29 @@ vi.mock('./Encoder', () => ({
 
 vi.mock('./Viewer', () => ({
   default: ({
+    documentId,
     content,
+    canEdit,
     canRequestGrant,
     grantStatus,
     grantError,
+    onEdit,
   }: {
+    documentId: string
     content: string
+    canEdit: boolean
     canRequestGrant: boolean
     grantStatus?: string
     grantError?: string | null
+    onEdit?: () => void
   }) => (
     <div data-testid="viewer">
-      {`viewer:${content}:${String(canRequestGrant)}:${grantStatus ?? 'idle'}:${grantError ?? ''}`}
+      {`viewer:${documentId}:${content}:${String(canEdit)}:${String(canRequestGrant)}:${grantStatus ?? 'idle'}:${grantError ?? ''}`}
+      {canEdit && onEdit ? (
+        <button data-testid="viewer-edit" onClick={onEdit}>
+          Edit
+        </button>
+      ) : null}
     </div>
   ),
 }))
@@ -78,8 +94,10 @@ vi.mock('./lib/schema', () => ({
 
 vi.mock('./lib/urlState', () => ({
   readDocumentId: mockReadDocumentId,
+  readEditMode: mockReadEditMode,
   readGrantCode: mockReadGrantCode,
   clearGrantCode: mockClearGrantCode,
+  pushEditMode: mockPushEditMode,
 }))
 
 vi.mock('./lib/localhostGrant', () => ({
@@ -111,6 +129,7 @@ describe('App', () => {
     mockUseSession.mockReturnValue({ user_id: 'user_123' })
     mockUseAll.mockReturnValue(undefined)
     mockReadDocumentId.mockReturnValue(null)
+    mockReadEditMode.mockReturnValue(false)
     mockReadGrantCode.mockReturnValue(null)
     mockGrantScriptDocumentAccess.mockResolvedValue(undefined)
   })
@@ -158,11 +177,36 @@ describe('App', () => {
 
     render(<App auth={auth} />)
 
-    expect(screen.getByTestId('viewer').textContent).toBe('viewer:# Read only:true:idle:')
+    expect(screen.getByTestId('viewer').textContent).toContain(
+      'viewer:doc_view:# Read only:false:true:idle:',
+    )
   })
 
-  test('renders the editor for a writable document row', () => {
+  test('renders the viewer for a writable document when edit mode is off', async () => {
     mockReadDocumentId.mockReturnValue('doc_edit')
+    mockReadEditMode.mockReturnValue(false)
+    mockUseAll.mockReturnValue([
+      {
+        id: 'doc_edit',
+        ownerId: 'user_123',
+        content: '# Editable',
+        $canEdit: true,
+      },
+    ])
+
+    render(<App auth={auth} />)
+
+    expect(screen.getByTestId('viewer').textContent).toContain(
+      'viewer:doc_edit:# Editable:true:false:idle:',
+    )
+
+    await userEvent.click(screen.getByTestId('viewer-edit'))
+    expect(mockPushEditMode).toHaveBeenCalledWith(true)
+  })
+
+  test('renders the editor for a writable document row when edit mode is on', () => {
+    mockReadDocumentId.mockReturnValue('doc_edit')
+    mockReadEditMode.mockReturnValue(true)
     mockUseAll.mockReturnValue([
       {
         id: 'doc_edit',
@@ -217,8 +261,8 @@ describe('App', () => {
     render(<App auth={auth} />)
 
     await waitFor(() => {
-      expect(screen.getByTestId('viewer').textContent).toBe(
-        'viewer:# Read only:true:pending:',
+      expect(screen.getByTestId('viewer').textContent).toContain(
+        'viewer:doc_view:# Read only:false:true:pending:',
       )
     })
 
@@ -241,8 +285,8 @@ describe('App', () => {
     render(<App auth={auth} />)
 
     await waitFor(() => {
-      expect(screen.getByTestId('viewer').textContent).toBe(
-        'viewer:# Read only:true:failed:Grant request expired',
+      expect(screen.getByTestId('viewer').textContent).toContain(
+        'viewer:doc_view:# Read only:false:true:failed:Grant request expired',
       )
     })
   })
@@ -251,6 +295,7 @@ describe('App', () => {
     const actualUrlState = await vi.importActual<typeof import('./lib/urlState')>('./lib/urlState')
 
     mockReadDocumentId.mockImplementation(actualUrlState.readDocumentId)
+    mockReadEditMode.mockImplementation(actualUrlState.readEditMode)
     mockReadGrantCode.mockImplementation(actualUrlState.readGrantCode)
     mockClearGrantCode.mockImplementation(actualUrlState.clearGrantCode)
     mockUseAll.mockImplementation((value) =>
@@ -274,8 +319,8 @@ describe('App', () => {
     window.history.replaceState(null, '', '/?id=doc_history#grantCode=grant_history')
 
     await waitFor(() => {
-      expect(screen.getByTestId('viewer').textContent).toBe(
-        'viewer:# Via History:true:pending:',
+      expect(screen.getByTestId('viewer').textContent).toContain(
+        'viewer:doc_history:# Via History:false:true:pending:',
       )
     })
 

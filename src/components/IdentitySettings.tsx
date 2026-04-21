@@ -83,17 +83,27 @@ export default function IdentitySettings({ auth }: IdentitySettingsProps) {
     <section className="identity-settings" aria-label="Identity settings">
       <div className="identity-settings__actions">
         {canPromptForBackup ? (
-          <button type="button" onClick={handleBackup} disabled={isPending}>
-            Back up passkey
+          <button
+            type="button"
+            className="identity-settings__btn identity-settings__btn--primary"
+            onClick={handleBackup}
+            disabled={isPending}
+          >
+            Save passkey
           </button>
         ) : null}
-        <button type="button" onClick={handleRestore} disabled={isPending}>
-          Restore passkey
+        <button
+          type="button"
+          className="identity-settings__btn"
+          onClick={handleRestore}
+          disabled={isPending}
+        >
+          Sign in
         </button>
       </div>
       {feedback ? (
         <p
-          className="identity-settings__status"
+          className={`identity-settings__status identity-settings__status--${feedback.kind}`}
           aria-live={feedback.kind === 'error' ? 'assertive' : 'polite'}
           role={feedback.kind === 'error' ? 'alert' : undefined}
         >

@@ -74,7 +74,7 @@ describe('Encoder', () => {
     expect(db.insert).not.toHaveBeenCalled()
   })
 
-  test('inserts on share and updates the URL with the new document id', async () => {
+  test('inserts on share, copies the plain share URL, and enters edit mode in the URL', async () => {
     const user = userEvent.setup()
     const db = mockUseDb()
 
@@ -87,7 +87,7 @@ describe('Encoder', () => {
       ownerId: 'user_123',
       content: expect.any(String),
     })
-    expect(window.location.search).toBe('?id=doc_new')
+    expect(window.location.search).toBe('?id=doc_new&edit=1')
   })
 
   test('debounces updates to an existing document row by 300ms', async () => {
