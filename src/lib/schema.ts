@@ -1,11 +1,11 @@
-import { col, defineApp, definePermissions, defineTable } from 'jazz-tools'
+import { col, definePermissions, schema } from 'jazz-tools'
 
-export const shareableDiagramsApp = defineApp({
-  documents: defineTable({
+export const shareableDiagramsApp = schema.defineApp({
+  documents: schema.table({
     ownerId: col.string(),
     content: col.string(),
   }).index('documents_by_owner', ['ownerId']),
-  documentWriteGrants: defineTable({
+  documentWriteGrants: schema.table({
     ownerId: col.string(),
     granteeId: col.string(),
   }).index('grants_by_owner_grantee', ['ownerId', 'granteeId']),
