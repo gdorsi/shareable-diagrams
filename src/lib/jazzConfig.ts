@@ -8,7 +8,4 @@ export const browserSharedConfig = sharedConfig
 export const browserDbConfig: DbConfig = {
   appId: sharedConfig.appId,
   serverUrl: sharedConfig.serverUrl,
-  runtimeSources: {
-    baseUrl: new URL(import.meta.env.BASE_URL, window.location.origin).toString(),
-  },
 }
