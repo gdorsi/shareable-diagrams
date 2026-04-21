@@ -11,24 +11,24 @@ const {
   mockBackup,
   mockRestore,
   mockConstructor,
+  MockBrowserPasskeyBackup,
 } = vi.hoisted(() => ({
   mockBackup: vi.fn(),
   mockRestore: vi.fn(),
   mockConstructor: vi.fn(),
-}))
-
-vi.mock('jazz-tools/passkey-backup', () => {
-  class BrowserPasskeyBackup {
+  MockBrowserPasskeyBackup: class BrowserPasskeyBackup {
     backup = mockBackup
     restore = mockRestore
 
     constructor(options: unknown) {
       mockConstructor(options)
     }
-  }
+  },
+}))
 
+vi.mock('jazz-tools/passkey-backup', () => {
   return {
-    BrowserPasskeyBackup,
+    BrowserPasskeyBackup: MockBrowserPasskeyBackup,
   }
 })
 
@@ -52,6 +52,7 @@ describe('passkeyBackup', () => {
       appHostname: 'shareable.example',
     })
 
+    expect(client).toBeInstanceOf(MockBrowserPasskeyBackup)
     await client.backup('secret', 'Shareable Diagrams Browser')
     await client.restore()
 

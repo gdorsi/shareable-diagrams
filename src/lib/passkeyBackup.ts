@@ -11,15 +11,10 @@ export function createPasskeyBackupClient({
   appName,
   appHostname,
 }: PasskeyBackupOptions) {
-  const backup = new BrowserPasskeyBackup({
+  return new BrowserPasskeyBackup({
     appName,
     appHostname,
   })
-
-  return {
-    backup: (secret: string, displayName: string) => backup.backup(secret, displayName),
-    restore: () => backup.restore(),
-  }
 }
 
 export function markPasskeyBackupCreated() {
