@@ -1,5 +1,46 @@
-import { co, z } from 'jazz-tools'
+import { col, defineApp, definePermissions, defineTable } from 'jazz-tools'
 
-export const MarkdownDoc = co.map({
-  content: z.string(),
+export const shareableDiagramsApp = defineApp({
+  documents: defineTable({
+    ownerId: col.string(),
+    content: col.string(),
+  }).index('documents_by_owner', ['ownerId']),
+  documentWriteGrants: defineTable({
+    ownerId: col.string(),
+    granteeId: col.string(),
+  }).index('grants_by_owner_grantee', ['ownerId', 'granteeId']),
 })
+
+export const shareableDiagramsPermissions = definePermissions(
+  shareableDiagramsApp,
+  ({ anyOf, policy, session }) => {
+    policy.documents.allowRead.always()
+    policy.documents.allowInsert.where({ ownerId: session.user_id })
+    policy.documents.allowUpdate.where((row) =>
+      anyOf([
+        { ownerId: session.user_id },
+        policy.exists(
+          policy.documentWriteGrants.where({
+            ownerId: row.ownerId,
+            granteeId: session.user_id,
+          }),
+        ),
+      ]),
+    )
+    policy.documents.allowDelete.where((row) =>
+      anyOf([
+        { ownerId: session.user_id },
+        policy.exists(
+          policy.documentWriteGrants.where({
+            ownerId: row.ownerId,
+            granteeId: session.user_id,
+          }),
+        ),
+      ]),
+    )
+
+    policy.documentWriteGrants.allowRead.where({ ownerId: session.user_id })
+    policy.documentWriteGrants.allowInsert.where({ ownerId: session.user_id })
+    policy.documentWriteGrants.allowDelete.where({ ownerId: session.user_id })
+  },
+)
