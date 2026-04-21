@@ -44,3 +44,5 @@ export const shareableDiagramsPermissions = definePermissions(
     policy.documentWriteGrants.allowDelete.where({ ownerId: session.user_id })
   },
 )
+
+export const app = shareableDiagramsApp

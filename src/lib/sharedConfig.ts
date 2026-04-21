@@ -2,6 +2,8 @@ export const DEFAULT_SHARE_BASE_URL = 'https://gdorsi.github.io/shareable-diagra
 export const DEFAULT_GRANT_SERVICE_URL = 'http://127.0.0.1:43110'
 export const DEFAULT_PASSKEY_RP_ID = 'gdorsi.github.io'
 export const GRANT_CODE_TTL_MS = 10 * 60 * 1000
+export const JAZZ_APP_ID = '019db20e-d449-7003-9d16-86afe9521671'
+export const JAZZ_SERVER_URL = 'https://v2.sync.jazz.tools/'
 
 type EnvInput = Record<string, string | undefined>
 
@@ -16,8 +18,8 @@ export interface SharedConfig {
 
 export function resolveSharedConfig(env: EnvInput): SharedConfig {
   return {
-    appId: env.VITE_JAZZ_APP_ID ?? 'shareable-diagrams',
-    serverUrl: env.VITE_JAZZ_SERVER_URL ?? 'https://cloud.jazz.tools',
+    appId: JAZZ_APP_ID,
+    serverUrl: JAZZ_SERVER_URL,
     passkeyRpId: env.VITE_JAZZ_PASSKEY_RP_ID ?? DEFAULT_PASSKEY_RP_ID,
     shareBaseUrl:
       env.SHARE_DIAGRAM_BASE_URL ?? env.VITE_SHARE_DIAGRAM_BASE_URL ?? DEFAULT_SHARE_BASE_URL,

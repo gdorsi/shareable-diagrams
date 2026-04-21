@@ -1,12 +1,15 @@
 # Shareable Diagrams
 
-## Required Environment Variables
+## Runtime Config
 
-- `VITE_JAZZ_APP_ID`
-- `VITE_JAZZ_SERVER_URL`
-- `VITE_JAZZ_PASSKEY_RP_ID`
+- Jazz app ID and server URL are pinned in [src/lib/sharedConfig.ts](/Users/guidodorsi/workspace/shareable-diagrams/src/lib/sharedConfig.ts).
+- `VITE_JAZZ_PASSKEY_RP_ID` (optional, defaults to `gdorsi.github.io`)
 - `SHARE_DIAGRAM_BASE_URL` (optional, defaults to the GitHub Pages URL)
 - `SHARE_DIAGRAM_GRANT_SERVICE_URL` (optional, defaults to `http://127.0.0.1:43110`)
+
+## Schema Publishing
+
+- `JAZZ_ADMIN_SECRET`
 
 ## Local Development
 

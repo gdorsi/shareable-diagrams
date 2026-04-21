@@ -11889,10 +11889,12 @@ var DEFAULT_SHARE_BASE_URL = "https://gdorsi.github.io/shareable-diagrams/";
 var DEFAULT_GRANT_SERVICE_URL = "http://127.0.0.1:43110";
 var DEFAULT_PASSKEY_RP_ID = "gdorsi.github.io";
 var GRANT_CODE_TTL_MS = 10 * 60 * 1e3;
+var JAZZ_APP_ID = "019db20e-d449-7003-9d16-86afe9521671";
+var JAZZ_SERVER_URL = "https://v2.sync.jazz.tools/";
 function resolveSharedConfig(env) {
   return {
-    appId: env.VITE_JAZZ_APP_ID ?? "shareable-diagrams",
-    serverUrl: env.VITE_JAZZ_SERVER_URL ?? "https://cloud.jazz.tools",
+    appId: JAZZ_APP_ID,
+    serverUrl: JAZZ_SERVER_URL,
     passkeyRpId: env.VITE_JAZZ_PASSKEY_RP_ID ?? DEFAULT_PASSKEY_RP_ID,
     shareBaseUrl: env.SHARE_DIAGRAM_BASE_URL ?? env.VITE_SHARE_DIAGRAM_BASE_URL ?? DEFAULT_SHARE_BASE_URL,
     grantServiceUrl: env.SHARE_DIAGRAM_GRANT_SERVICE_URL ?? env.VITE_SHARE_DIAGRAM_GRANT_SERVICE_URL ?? DEFAULT_GRANT_SERVICE_URL,

@@ -3,12 +3,14 @@ import {
   DEFAULT_GRANT_SERVICE_URL,
   DEFAULT_SHARE_BASE_URL,
   GRANT_CODE_TTL_MS,
+  JAZZ_APP_ID,
+  JAZZ_SERVER_URL,
   isApprovedGrantOrigin,
   resolveSharedConfig,
 } from './sharedConfig'
 
 describe('resolveSharedConfig', () => {
-  test('uses browser-facing env values when present', () => {
+  test('keeps the Jazz app identity and server URL pinned in code', () => {
     expect(
       resolveSharedConfig({
         VITE_JAZZ_APP_ID: 'app_prod',
@@ -18,8 +20,8 @@ describe('resolveSharedConfig', () => {
         VITE_SHARE_DIAGRAM_GRANT_SERVICE_URL: 'https://grant.example.com',
       }),
     ).toEqual({
-      appId: 'app_prod',
-      serverUrl: 'https://sync.example.com',
+      appId: JAZZ_APP_ID,
+      serverUrl: JAZZ_SERVER_URL,
       passkeyRpId: 'gdorsi.github.io',
       shareBaseUrl: 'https://gdorsi.github.io/shareable-diagrams/',
       grantServiceUrl: 'https://grant.example.com',
@@ -34,8 +36,8 @@ describe('resolveSharedConfig', () => {
         SHARE_DIAGRAM_GRANT_SERVICE_URL: 'https://node.example.com/grant',
       }),
     ).toEqual({
-      appId: 'shareable-diagrams',
-      serverUrl: 'https://cloud.jazz.tools',
+      appId: JAZZ_APP_ID,
+      serverUrl: JAZZ_SERVER_URL,
       passkeyRpId: 'gdorsi.github.io',
       shareBaseUrl: 'https://node.example.com/share/',
       grantServiceUrl: 'https://node.example.com/grant',
@@ -52,8 +54,8 @@ describe('resolveSharedConfig', () => {
         VITE_SHARE_DIAGRAM_GRANT_SERVICE_URL: 'https://vite.example.com/grant',
       }),
     ).toEqual({
-      appId: 'shareable-diagrams',
-      serverUrl: 'https://cloud.jazz.tools',
+      appId: JAZZ_APP_ID,
+      serverUrl: JAZZ_SERVER_URL,
       passkeyRpId: 'gdorsi.github.io',
       shareBaseUrl: 'https://node.example.com/share/',
       grantServiceUrl: 'https://node.example.com/grant',
@@ -63,8 +65,8 @@ describe('resolveSharedConfig', () => {
 
   test('falls back to the production defaults', () => {
     expect(resolveSharedConfig({})).toEqual({
-      appId: 'shareable-diagrams',
-      serverUrl: 'https://cloud.jazz.tools',
+      appId: JAZZ_APP_ID,
+      serverUrl: JAZZ_SERVER_URL,
       passkeyRpId: 'gdorsi.github.io',
       shareBaseUrl: DEFAULT_SHARE_BASE_URL,
       grantServiceUrl: DEFAULT_GRANT_SERVICE_URL,
