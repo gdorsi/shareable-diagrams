@@ -1,11 +1,43 @@
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import {
+  chmodSync,
+  mkdirSync,
+  readFileSync,
+  renameSync,
+  unlinkSync,
+  writeFileSync,
+} from 'node:fs'
 import { dirname, join } from 'node:path'
 import { homedir } from 'node:os'
 import { createHash, randomBytes } from 'node:crypto'
 import { GRANT_CODE_TTL_MS } from '../../../src/lib/sharedConfig.ts'
 
-const GRANT_CODE_STORE_DIR = join(homedir(), '.shareable-diagrams')
-const GRANT_CODE_STORE_PATH = join(GRANT_CODE_STORE_DIR, 'grant-codes.json')
+function getGrantCodeStoreDir() {
+  return join(homedir(), '.shareable-diagrams')
+}
+
+function getGrantCodeStorePath() {
+  return join(getGrantCodeStoreDir(), 'grant-codes.json')
+}
+
+function ensurePrivateDirectory(dirPath) {
+  mkdirSync(dirPath, { recursive: true, mode: 0o700 })
+  chmodSync(dirPath, 0o700)
+}
+
+function atomicWriteFile(filePath, contents) {
+  const dirPath = dirname(filePath)
+  ensurePrivateDirectory(dirPath)
+
+  const tempPath = `${filePath}.${process.pid}.${Math.random().toString(16).slice(2)}.tmp`
+  try {
+    writeFileSync(tempPath, contents, { mode: 0o600 })
+    renameSync(tempPath, filePath)
+  } finally {
+    try {
+      unlinkSync(tempPath)
+    } catch {}
+  }
+}
 
 function sha256Hex(value) {
   return createHash('sha256').update(value).digest('hex')
@@ -13,7 +45,7 @@ function sha256Hex(value) {
 
 function readGrantCodeStateFile() {
   try {
-    const raw = readFileSync(GRANT_CODE_STORE_PATH, 'utf8')
+    const raw = readFileSync(getGrantCodeStorePath(), 'utf8')
     const parsed = JSON.parse(raw)
 
     if (parsed && typeof parsed === 'object' && Array.isArray(parsed.records)) {
@@ -30,27 +62,17 @@ function readGrantCodeStateFile() {
 }
 
 function writeGrantCodeStateFile(records) {
-  mkdirSync(dirname(GRANT_CODE_STORE_PATH), { recursive: true })
-  writeFileSync(
-    GRANT_CODE_STORE_PATH,
-    `${JSON.stringify({ records }, null, 2)}\n`,
-    'utf8',
-  )
-}
-
-export function createGrantCodeState() {
-  const records = readGrantCodeStateFile()
-  return {
-    records,
-    persist() {
-      writeGrantCodeStateFile(records)
-    },
-  }
+  atomicWriteFile(getGrantCodeStorePath(), `${JSON.stringify({ records }, null, 2)}\n`)
 }
 
 function ensureState(state) {
   if (!state || typeof state !== 'object') {
-    throw new Error('grant code state is required')
+    return {
+      records: readGrantCodeStateFile(),
+      persist() {
+        writeGrantCodeStateFile(this.records)
+      },
+    }
   }
 
   if (!Array.isArray(state.records)) {

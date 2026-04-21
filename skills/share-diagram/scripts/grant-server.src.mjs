@@ -1,7 +1,7 @@
 import http from 'node:http'
 import { pathToFileURL } from 'node:url'
 import { createScriptDb } from './identity-store.src.mjs'
-import { createGrantCodeState, consumeGrantCode } from './grant-code-store.src.mjs'
+import { consumeGrantCode } from './grant-code-store.src.mjs'
 import { isApprovedGrantOrigin } from '../../../src/lib/sharedConfig.ts'
 import { shareableDiagramsApp } from '../../../src/lib/schema.ts'
 
@@ -21,6 +21,7 @@ function corsHeaders(origin) {
     'access-control-allow-credentials': 'true',
     'access-control-allow-methods': 'POST, OPTIONS',
     'access-control-allow-headers': 'content-type',
+    'access-control-allow-private-network': 'true',
     vary: 'origin',
   }
 }
@@ -56,9 +57,9 @@ function ensureApprovedOrigin(request) {
   return { ok: true, origin }
 }
 
-export function createGrantServer({ db, grantCodeState = createGrantCodeState() }) {
-  if (!db || typeof db.upsert !== 'function') {
-    throw new Error('db with upsert is required')
+export function createGrantServer({ db }) {
+  if (!db || typeof db.upsertDurable !== 'function') {
+    throw new Error('db with upsertDurable is required')
   }
 
   async function handle(request) {
@@ -96,7 +97,6 @@ export function createGrantServer({ db, grantCodeState = createGrantCodeState() 
     try {
       grant = consumeGrantCode({
         code,
-        state: grantCodeState,
       })
     } catch (error) {
       const message = error instanceof Error ? error.message : 'grant request failed'
@@ -110,7 +110,7 @@ export function createGrantServer({ db, grantCodeState = createGrantCodeState() 
     }
 
     const grantId = `grant:${grant.ownerId}:${browserUserId}`
-    db.upsert(
+    await db.upsertDurable(
       shareableDiagramsApp.documentWriteGrants,
       {
         ownerId: grant.ownerId,
