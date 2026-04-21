@@ -1,80 +1,172 @@
 // @vitest-environment jsdom
 
-import { render, screen } from '@testing-library/react'
-import { describe, expect, test, vi } from 'vitest'
+import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import App from './App'
 
-vi.mock('@comark/react', async () => {
-  const React = await import('react')
-
-  return {
-    Comark: async ({ children, markdown }: { children?: string; markdown?: string }) =>
-      React.createElement('div', { 'data-testid': 'async-comark' }, children ?? markdown),
-    ComarkClient: ({ children, markdown }: { children?: string; markdown?: string }) =>
-      React.createElement('div', { 'data-testid': 'client-comark' }, children ?? markdown),
-  }
-})
-
-vi.mock('@comark/react/plugins/mermaid', () => ({
-  default: () => ({}),
-  Mermaid: () => null,
+const {
+  mockUseAll,
+  mockUseSession,
+  mockReadDocumentId,
+  mockReadGrantCode,
+  mockClearGrantCode,
+  mockGrantScriptDocumentAccess,
+  whereSpy,
+  selectSpy,
+  limitSpy,
+  query,
+} = vi.hoisted(() => ({
+  mockUseAll: vi.fn(),
+  mockUseSession: vi.fn(),
+  mockReadDocumentId: vi.fn(),
+  mockReadGrantCode: vi.fn(),
+  mockClearGrantCode: vi.fn(),
+  mockGrantScriptDocumentAccess: vi.fn(),
+  whereSpy: vi.fn(),
+  selectSpy: vi.fn(),
+  limitSpy: vi.fn(),
+  query: { kind: 'documentsQuery' },
 }))
-
-vi.mock('@comark/react/plugins/highlight', () => ({
-  default: () => ({}),
-}))
-
-vi.mock('@shikijs/themes/github-light', () => ({ default: {} }))
-vi.mock('@shikijs/themes/github-dark', () => ({ default: {} }))
 
 vi.mock('jazz-tools/react', () => ({
-  JazzReactProvider: ({ children }: { children: React.ReactNode }) => children,
-  useCoState: () => ({
-    $isLoaded: false,
-    $jazz: { loadingState: 'loading' },
-  }),
+  useAll: mockUseAll,
+  useSession: mockUseSession,
 }))
 
-vi.mock('jazz-tools', () => ({
-  co: {
-    map: () => ({
-      create: vi.fn(() => ({
-        content: '',
-        $jazz: { id: 'co_testdocid', set: vi.fn() },
-      })),
-    }),
-  },
-  z: { string: () => ({}) },
-  Group: { create: vi.fn(() => ({ makePublic: vi.fn() })) },
+vi.mock('./Encoder', () => ({
+  default: ({ document }: { document?: { id: string } }) => (
+    <div data-testid="encoder">
+      {document ? `editor:${document.id}` : 'new-document'}
+    </div>
+  ),
 }))
 
-Object.defineProperty(window, 'matchMedia', {
-  writable: true,
-  value: vi.fn(() => ({
-    matches: false,
-    media: '',
-    onchange: null,
-    addListener: vi.fn(),
-    removeListener: vi.fn(),
-    addEventListener: vi.fn(),
-    removeEventListener: vi.fn(),
-    dispatchEvent: vi.fn(),
-  })),
-})
+vi.mock('./Viewer', () => ({
+  default: ({
+    content,
+    canRequestGrant,
+  }: {
+    content: string
+    canRequestGrant: boolean
+  }) => (
+    <div data-testid="viewer">
+      {`viewer:${content}:${String(canRequestGrant)}`}
+    </div>
+  ),
+}))
 
-Object.defineProperty(navigator, 'clipboard', {
-  writable: true,
-  value: {
-    writeText: vi.fn(async () => undefined),
+vi.mock('./lib/schema', () => ({
+  shareableDiagramsApp: {
+    documents: {
+      where: whereSpy,
+    },
   },
-})
+}))
+
+vi.mock('./lib/urlState', () => ({
+  readDocumentId: mockReadDocumentId,
+  readGrantCode: mockReadGrantCode,
+  clearGrantCode: mockClearGrantCode,
+}))
+
+vi.mock('./lib/localhostGrant', () => ({
+  grantScriptDocumentAccess: mockGrantScriptDocumentAccess,
+}))
 
 describe('App', () => {
-  test('renders the encoder without throwing when no id is in the querystring', async () => {
-    window.history.replaceState(null, '', '/')
+  afterEach(() => {
+    cleanup()
+  })
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+
+    limitSpy.mockReturnValue(query)
+    selectSpy.mockReturnValue({ limit: limitSpy })
+    whereSpy.mockReturnValue({ select: selectSpy })
+
+    mockUseSession.mockReturnValue({ user_id: 'user_123' })
+    mockUseAll.mockReturnValue(undefined)
+    mockReadDocumentId.mockReturnValue(null)
+    mockReadGrantCode.mockReturnValue(null)
+    mockGrantScriptDocumentAccess.mockResolvedValue(undefined)
+  })
+
+  test('renders the encoder when there is no document id in the URL', () => {
+    render(<App />)
+
+    expect(screen.getByTestId('encoder').textContent).toBe('new-document')
+    expect(whereSpy).not.toHaveBeenCalled()
+  })
+
+  test('renders loading while the document query is unresolved', () => {
+    mockReadDocumentId.mockReturnValue('doc_loading')
+    mockUseAll.mockReturnValue(undefined)
 
     render(<App />)
 
-    expect(await screen.findByText('Shareable Diagrams')).toBeTruthy()
+    expect(screen.getByText('Loading document...')).toBeTruthy()
+    expect(whereSpy).toHaveBeenCalledWith({ id: 'doc_loading' })
+    expect(selectSpy).toHaveBeenCalledWith('id', 'ownerId', 'content', '$canEdit')
+    expect(limitSpy).toHaveBeenCalledWith(1)
+    expect(mockUseAll).toHaveBeenCalledWith(query)
+  })
+
+  test('renders not found when the document query resolves empty', () => {
+    mockReadDocumentId.mockReturnValue('doc_missing')
+    mockUseAll.mockReturnValue([])
+
+    render(<App />)
+
+    expect(screen.getByText('Document not found')).toBeTruthy()
+  })
+
+  test('renders the viewer for a read-only document row', () => {
+    mockReadDocumentId.mockReturnValue('doc_view')
+    mockUseAll.mockReturnValue([
+      {
+        id: 'doc_view',
+        ownerId: 'owner_456',
+        content: '# Read only',
+        $canEdit: false,
+      },
+    ])
+
+    render(<App />)
+
+    expect(screen.getByTestId('viewer').textContent).toBe('viewer:# Read only:true')
+  })
+
+  test('renders the editor for a writable document row', () => {
+    mockReadDocumentId.mockReturnValue('doc_edit')
+    mockUseAll.mockReturnValue([
+      {
+        id: 'doc_edit',
+        ownerId: 'user_123',
+        content: '# Editable',
+        $canEdit: true,
+      },
+    ])
+
+    render(<App />)
+
+    expect(screen.getByTestId('encoder').textContent).toBe('editor:doc_edit')
+  })
+
+  test('grants script document access from the URL fragment and clears the hash', async () => {
+    mockReadGrantCode.mockReturnValue('grant_abc123')
+
+    render(<App />)
+
+    await waitFor(() => {
+      expect(mockGrantScriptDocumentAccess).toHaveBeenCalledWith({
+        browserUserId: 'user_123',
+        code: 'grant_abc123',
+      })
+    })
+
+    await waitFor(() => {
+      expect(mockClearGrantCode).toHaveBeenCalledTimes(1)
+    })
   })
 })

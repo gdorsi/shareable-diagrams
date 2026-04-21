@@ -1,17 +1,31 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
-import { JazzReactProvider } from 'jazz-tools/react'
+import { JazzProvider, useLocalFirstAuth } from 'jazz-tools/react'
 import App from './App'
+import { browserDbConfig } from './lib/jazzConfig'
 import './style.css'
 
-const JAZZ_API_KEY = 'shareable-diagrams@jazz.tools'
+function Root() {
+  const auth = useLocalFirstAuth()
+
+  if (auth.isLoading) {
+    return <div>Loading...</div>
+  }
+
+  return (
+    <JazzProvider
+      config={{
+        ...browserDbConfig,
+        secret: auth.secret ?? undefined,
+      }}
+    >
+      <App />
+    </JazzProvider>
+  )
+}
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <JazzReactProvider
-      sync={{ peer: `wss://cloud.jazz.tools/?key=${JAZZ_API_KEY}` }}
-    >
-      <App />
-    </JazzReactProvider>
+    <Root />
   </StrictMode>,
 )

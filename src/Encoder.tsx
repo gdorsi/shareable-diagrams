@@ -1,12 +1,14 @@
-import { useState, useEffect, useRef } from 'react'
+import { useEffect, useState } from 'react'
 import { ComarkClient } from '@comark/react'
 import mermaid from '@comark/react/plugins/mermaid'
 import { Mermaid } from '@comark/react/plugins/mermaid'
 import highlight from '@comark/react/plugins/highlight'
 import githubLight from '@shikijs/themes/github-light'
 import githubDark from '@shikijs/themes/github-dark'
-import { Group, co } from 'jazz-tools'
-import { MarkdownDoc } from './lib/schema'
+import { useDb, useSession } from 'jazz-tools/react'
+import { defaultMarkdown } from './lib/defaultMarkdown'
+import { shareableDiagramsApp } from './lib/schema'
+import { replaceDocumentId } from './lib/urlState'
 
 const plugins = [
   mermaid(),
@@ -15,71 +17,71 @@ const plugins = [
 
 const components = { mermaid: Mermaid }
 
-const defaultMarkdown = `# My POC Document
-
-## Architecture Overview
-
-\`\`\`mermaid
-graph LR
-    A[User] --> B[API Gateway]
-    B --> C[Service A]
-    B --> D[Service B]
-    C --> E[(Database)]
-    D --> E
-\`\`\`
-
-## Key Decisions
-
-- **Decision 1**: Use event-driven architecture
-- **Decision 2**: PostgreSQL for persistence
-
-## Implementation Notes
-
-This is a proof of concept demonstrating the shareable diagrams feature.
-
-\`\`\`typescript
-const handler = async (event: Event) => {
-  await processEvent(event)
+type DocumentRow = {
+  id: string
+  ownerId: string
+  content: string
 }
-\`\`\`
-`
 
-type LoadedDoc = co.loaded<typeof MarkdownDoc>
-
-export default function Encoder({ doc: initialDoc }: { doc?: LoadedDoc } = {}) {
-  const [doc, setDoc] = useState<LoadedDoc | null>(initialDoc ?? null)
-  const [markdown, setMarkdown] = useState(initialDoc?.content ?? defaultMarkdown)
+export default function Encoder({ document }: { document?: DocumentRow } = {}) {
+  const db = useDb()
+  const session = useSession()
+  const [row, setRow] = useState<DocumentRow | undefined>(document)
+  const [markdown, setMarkdown] = useState(document?.content ?? defaultMarkdown)
   const [copied, setCopied] = useState(false)
-  const createdRef = useRef(false)
 
   useEffect(() => {
-    if (doc || createdRef.current) return
-    createdRef.current = true
-    const group = Group.create()
-    group.makePublic()
-    const newDoc = MarkdownDoc.create({ content: defaultMarkdown }, { owner: group })
-    setDoc(newDoc)
-    const url = new URL(window.location.href)
-    url.searchParams.set('id', newDoc.$jazz.id)
-    window.history.replaceState(null, '', url.toString())
-  }, [doc])
+    if (!document) {
+      return
+    }
+
+    setRow(document)
+    setMarkdown(document.content)
+  }, [document])
 
   useEffect(() => {
-    if (!doc) return
-    if (markdown === doc.content) return
-    const timeout = setTimeout(() => {
-      doc.$jazz.set('content', markdown)
-    }, 300)
-    return () => clearTimeout(timeout)
-  }, [markdown, doc])
+    if (!row || markdown === row.content) {
+      return
+    }
 
-  const shareUrl = doc
-    ? `${window.location.origin}${window.location.pathname}?id=${doc.$jazz.id}`
+    db.update(shareableDiagramsApp.documents, row.id, { content: markdown })
+    setRow({ ...row, content: markdown })
+  }, [db, markdown, row])
+
+  const currentRow = row ?? document
+  const shareUrl = currentRow
+    ? `${window.location.origin}${window.location.pathname}?id=${currentRow.id}`
     : ''
 
+  const getOrCreateRow = () => {
+    if (currentRow) {
+      return currentRow
+    }
+
+    if (!session) {
+      return null
+    }
+
+    const inserted = db.insert(shareableDiagramsApp.documents, {
+      ownerId: session.user_id,
+      content: markdown,
+    }).value as DocumentRow
+
+    setRow(inserted)
+    replaceDocumentId(inserted.id)
+
+    return inserted
+  }
+
   const handleCopy = async () => {
-    if (!shareUrl) return
-    await navigator.clipboard.writeText(shareUrl)
+    const nextRow = getOrCreateRow()
+    if (!nextRow) {
+      return
+    }
+
+    await navigator.clipboard.writeText(
+      `${window.location.origin}${window.location.pathname}?id=${nextRow.id}`,
+    )
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
   }
@@ -108,7 +110,7 @@ export default function Encoder({ doc: initialDoc }: { doc?: LoadedDoc } = {}) {
         <button
           className="copy-btn"
           onClick={handleCopy}
-          disabled={!shareUrl}
+          disabled={!session && !shareUrl}
         >
           {copied ? 'Copied!' : 'Copy Shareable URL'}
         </button>

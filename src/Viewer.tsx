@@ -5,8 +5,7 @@ import { Mermaid } from '@comark/react/plugins/mermaid'
 import highlight from '@comark/react/plugins/highlight'
 import githubLight from '@shikijs/themes/github-light'
 import githubDark from '@shikijs/themes/github-dark'
-import { co } from 'jazz-tools'
-import { MarkdownDoc } from './lib/schema'
+import { readGrantCode } from './lib/urlState'
 
 const plugins = [
   mermaid(),
@@ -15,18 +14,21 @@ const plugins = [
 
 const components = { mermaid: Mermaid }
 
-type LoadedDoc = co.loaded<typeof MarkdownDoc>
-
-export default function Viewer({ doc }: { doc: LoadedDoc }) {
+export default function Viewer({
+  content,
+  canRequestGrant,
+}: {
+  content: string
+  canRequestGrant: boolean
+}) {
   const [copied, setCopied] = useState<'markdown' | 'url' | null>(null)
+  const grantCode = readGrantCode()
 
   const handleCopy = async (text: string, kind: 'markdown' | 'url') => {
     await navigator.clipboard.writeText(text)
     setCopied(kind)
     setTimeout(() => setCopied(null), 2000)
   }
-
-  const content = doc.content
 
   return (
     <div className="viewer">
@@ -44,6 +46,11 @@ export default function Viewer({ doc }: { doc: LoadedDoc }) {
           {copied === 'url' ? 'Copied!' : 'Copy Share URL'}
         </button>
       </div>
+      {canRequestGrant && !grantCode ? (
+        <p className="viewer-note">
+          This document is read-only. Ask the owner for a grant link if you need edit access.
+        </p>
+      ) : null}
       <div className="viewer-content">
         <ComarkClient plugins={plugins} components={components}>
           {content}
