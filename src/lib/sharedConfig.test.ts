@@ -33,9 +33,31 @@ describe('resolveSharedConfig', () => {
         SHARE_DIAGRAM_BASE_URL: 'https://node.example.com/share/',
         SHARE_DIAGRAM_GRANT_SERVICE_URL: 'https://node.example.com/grant',
       }),
-    ).toMatchObject({
+    ).toEqual({
+      appId: 'shareable-diagrams',
+      serverUrl: 'https://cloud.jazz.tools',
+      passkeyRpId: 'gdorsi.github.io',
       shareBaseUrl: 'https://node.example.com/share/',
       grantServiceUrl: 'https://node.example.com/grant',
+      grantCodeTtlMs: GRANT_CODE_TTL_MS,
+    })
+  })
+
+  test('prefers unprefixed Node-side values when both env forms are present', () => {
+    expect(
+      resolveSharedConfig({
+        SHARE_DIAGRAM_BASE_URL: 'https://node.example.com/share/',
+        VITE_SHARE_DIAGRAM_BASE_URL: 'https://vite.example.com/share/',
+        SHARE_DIAGRAM_GRANT_SERVICE_URL: 'https://node.example.com/grant',
+        VITE_SHARE_DIAGRAM_GRANT_SERVICE_URL: 'https://vite.example.com/grant',
+      }),
+    ).toEqual({
+      appId: 'shareable-diagrams',
+      serverUrl: 'https://cloud.jazz.tools',
+      passkeyRpId: 'gdorsi.github.io',
+      shareBaseUrl: 'https://node.example.com/share/',
+      grantServiceUrl: 'https://node.example.com/grant',
+      grantCodeTtlMs: GRANT_CODE_TTL_MS,
     })
   })
 

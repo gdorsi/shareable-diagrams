@@ -20,10 +20,10 @@ export function resolveSharedConfig(env: EnvInput): SharedConfig {
     serverUrl: env.VITE_JAZZ_SERVER_URL ?? 'https://cloud.jazz.tools',
     passkeyRpId: env.VITE_JAZZ_PASSKEY_RP_ID ?? DEFAULT_PASSKEY_RP_ID,
     shareBaseUrl:
-      env.VITE_SHARE_DIAGRAM_BASE_URL ?? env.SHARE_DIAGRAM_BASE_URL ?? DEFAULT_SHARE_BASE_URL,
+      env.SHARE_DIAGRAM_BASE_URL ?? env.VITE_SHARE_DIAGRAM_BASE_URL ?? DEFAULT_SHARE_BASE_URL,
     grantServiceUrl:
-      env.VITE_SHARE_DIAGRAM_GRANT_SERVICE_URL ??
       env.SHARE_DIAGRAM_GRANT_SERVICE_URL ??
+      env.VITE_SHARE_DIAGRAM_GRANT_SERVICE_URL ??
       DEFAULT_GRANT_SERVICE_URL,
     grantCodeTtlMs: GRANT_CODE_TTL_MS,
   }
