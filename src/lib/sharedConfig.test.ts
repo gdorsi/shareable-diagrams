@@ -8,26 +8,42 @@ import {
 } from './sharedConfig'
 
 describe('resolveSharedConfig', () => {
-  test('uses explicit env values when present', () => {
+  test('uses browser-facing env values when present', () => {
     expect(
       resolveSharedConfig({
         VITE_JAZZ_APP_ID: 'app_prod',
         VITE_JAZZ_SERVER_URL: 'https://sync.example.com',
         VITE_JAZZ_PASSKEY_RP_ID: 'gdorsi.github.io',
-        SHARE_DIAGRAM_BASE_URL: 'https://gdorsi.github.io/shareable-diagrams/',
+        VITE_SHARE_DIAGRAM_BASE_URL: 'https://gdorsi.github.io/shareable-diagrams/',
+        VITE_SHARE_DIAGRAM_GRANT_SERVICE_URL: 'https://grant.example.com',
       }),
     ).toEqual({
       appId: 'app_prod',
       serverUrl: 'https://sync.example.com',
       passkeyRpId: 'gdorsi.github.io',
       shareBaseUrl: 'https://gdorsi.github.io/shareable-diagrams/',
-      grantServiceUrl: DEFAULT_GRANT_SERVICE_URL,
+      grantServiceUrl: 'https://grant.example.com',
       grantCodeTtlMs: GRANT_CODE_TTL_MS,
     })
   })
 
+  test('uses the Node-side share and grant env values when present', () => {
+    expect(
+      resolveSharedConfig({
+        SHARE_DIAGRAM_BASE_URL: 'https://node.example.com/share/',
+        SHARE_DIAGRAM_GRANT_SERVICE_URL: 'https://node.example.com/grant',
+      }),
+    ).toMatchObject({
+      shareBaseUrl: 'https://node.example.com/share/',
+      grantServiceUrl: 'https://node.example.com/grant',
+    })
+  })
+
   test('falls back to the production defaults', () => {
-    expect(resolveSharedConfig({})).toMatchObject({
+    expect(resolveSharedConfig({})).toEqual({
+      appId: 'shareable-diagrams',
+      serverUrl: 'https://cloud.jazz.tools',
+      passkeyRpId: 'gdorsi.github.io',
       shareBaseUrl: DEFAULT_SHARE_BASE_URL,
       grantServiceUrl: DEFAULT_GRANT_SERVICE_URL,
       grantCodeTtlMs: GRANT_CODE_TTL_MS,
