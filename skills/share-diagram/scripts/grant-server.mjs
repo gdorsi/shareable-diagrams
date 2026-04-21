@@ -2475,10 +2475,14 @@ var init_jazz_wasm = __esm({
   }
 });
 
-// skills/share-diagram/scripts/encode.src.mjs
-import { readFileSync as readFileSync3 } from "node:fs";
-import { resolve } from "node:path";
+// skills/share-diagram/scripts/grant-server.src.mjs
+import http from "node:http";
 import { pathToFileURL } from "node:url";
+
+// skills/share-diagram/scripts/identity-store.src.mjs
+import { chmodSync, mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { homedir } from "node:os";
 
 // node_modules/jazz-tools/dist/magic-columns.js
 var RESERVED_MAGIC_COLUMN_PREFIX = "$";
@@ -8572,9 +8576,9 @@ var JazzClient = class _JazzClient {
     if (outcome.settled) {
       return outcome.error ? Promise.reject(outcome.error) : Promise.resolve();
     }
-    return new Promise((resolve2, reject) => {
+    return new Promise((resolve, reject) => {
       const waiters = this.pendingBatchWaiters.get(batchId) ?? [];
-      waiters.push({ tier, resolve: resolve2, reject });
+      waiters.push({ tier, resolve, reject });
       this.pendingBatchWaiters.set(batchId, waiters);
       this.flushPendingBatchWaiters();
       this.ensurePendingBatchWaitPolling();
@@ -8605,16 +8609,16 @@ async function tryLoadNodePackagedWasmBinary() {
     return null;
   }
   const { createRequire } = moduleBuiltin;
-  const { existsSync, readFileSync: readFileSync4 } = fsBuiltin;
-  const { dirname: dirname3, resolve: resolve2 } = pathBuiltin;
+  const { existsSync, readFileSync: readFileSync3 } = fsBuiltin;
+  const { dirname: dirname3, resolve } = pathBuiltin;
   const require2 = createRequire(import.meta.url);
   const packageJsonPath = require2.resolve("jazz-wasm/package.json");
   const packageDir = dirname3(packageJsonPath);
-  const wasmPath = resolve2(packageDir, "pkg/jazz_wasm_bg.wasm");
+  const wasmPath = resolve(packageDir, "pkg/jazz_wasm_bg.wasm");
   if (!existsSync(wasmPath)) {
     return null;
   }
-  return readFileSync4(wasmPath);
+  return readFileSync3(wasmPath);
 }
 async function loadWasmModule(runtime) {
   const wasmModule2 = await Promise.resolve().then(() => (init_jazz_wasm(), jazz_wasm_exports));
@@ -8649,11 +8653,11 @@ async function loadWasmModule(runtime) {
 var INIT_RESPONSE_TIMEOUT_MS = 12e3;
 var SHUTDOWN_ACK_TIMEOUT_MS = 5e3;
 function createDeferredPromise() {
-  let resolve2;
+  let resolve;
   const promise = new Promise((resolver) => {
-    resolve2 = resolver;
+    resolve = resolver;
   });
-  return { promise, resolve: resolve2 };
+  return { promise, resolve };
 }
 var WorkerBridge = class {
   worker;
@@ -8978,7 +8982,7 @@ function collectPayloadTransferables(payloads) {
   return payloads.map((payload) => payload.buffer);
 }
 function waitForMessage(worker, predicate, timeoutMs, timeoutMessage) {
-  return new Promise((resolve2, reject) => {
+  return new Promise((resolve, reject) => {
     const timeout = setTimeout(() => {
       cleanup();
       reject(new Error(timeoutMessage));
@@ -8986,7 +8990,7 @@ function waitForMessage(worker, predicate, timeoutMs, timeoutMessage) {
     const handler = (event) => {
       if (predicate(event.data)) {
         cleanup();
-        resolve2(event.data);
+        resolve(event.data);
       }
     };
     const cleanup = () => {
@@ -9530,12 +9534,12 @@ function createNavigatorLocksLeaderLockStrategy(lockManager = resolveNavigatorLo
   return {
     async tryAcquire(lockName) {
       let resolveAcquired = null;
-      const acquiredPromise = new Promise((resolve2) => {
-        resolveAcquired = resolve2;
+      const acquiredPromise = new Promise((resolve) => {
+        resolveAcquired = resolve;
       });
       let releaseLock = null;
-      const heldUntilReleased = new Promise((resolve2) => {
-        releaseLock = () => resolve2();
+      const heldUntilReleased = new Promise((resolve) => {
+        releaseLock = () => resolve();
       });
       void lockManager.request(lockName, { mode: "exclusive", ifAvailable: true }, async (lock) => {
         if (!lock) {
@@ -9630,8 +9634,8 @@ var TabLeaderElection = class {
     this.channelName = `jazz-leader:${options.appId}:${options.dbName}`;
     this.lockName = `jazz-leader-lock:${options.appId}:${options.dbName}`;
     this.lockStrategy = options.lockStrategy ?? createNavigatorLocksLeaderLockStrategy();
-    this.readyPromise = new Promise((resolve2, reject) => {
-      this.readyResolve = resolve2;
+    this.readyPromise = new Promise((resolve, reject) => {
+      this.readyResolve = resolve;
       this.readyReject = reject;
     });
   }
@@ -9897,7 +9901,7 @@ function setGlobalWasmLogLevel(level) {
   globalThis.__JAZZ_WASM_LOG_LEVEL = level ?? DEFAULT_WASM_LOG_LEVEL;
 }
 function sleep(ms) {
-  return new Promise((resolve2) => setTimeout(resolve2, ms));
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 function createOperationId(prefix) {
   const cryptoObj = globalThis.crypto;
@@ -9935,13 +9939,13 @@ function resolveDefaultPersistentDbName(config) {
   return `${config.appId}::${encodeURIComponent(sessionUserId)}`;
 }
 function createDeferred() {
-  let resolve2;
+  let resolve;
   let reject;
   const promise = new Promise((resolvePromise, rejectPromise) => {
-    resolve2 = resolvePromise;
+    resolve = resolvePromise;
     reject = rejectPromise;
   });
-  return { promise, resolve: resolve2, reject };
+  return { promise, resolve, reject };
 }
 function trimSubscriptionTraceStack(stack) {
   if (!stack) {
@@ -11258,13 +11262,13 @@ var Db = class _Db {
         type: "module"
       });
     }
-    await new Promise((resolve2, reject) => {
+    await new Promise((resolve, reject) => {
       const timeout = setTimeout(() => reject(new Error("Worker bootstrap timeout")), 15e3);
       const handler = (event) => {
         if (event.data.type === "ready") {
           clearTimeout(timeout);
           worker.removeEventListener("message", handler);
-          resolve2();
+          resolve();
         } else if (event.data.type === "error") {
           clearTimeout(timeout);
           worker.removeEventListener("message", handler);
@@ -11880,55 +11884,6 @@ var schema = Object.assign({}, col, {
   permissionIntrospectionColumns
 });
 
-// src/lib/schema.ts
-var shareableDiagramsApp = schema.defineApp({
-  documents: schema.table({
-    ownerId: col.string(),
-    content: col.string()
-  }).index("documents_by_owner", ["ownerId"]),
-  documentWriteGrants: schema.table({
-    ownerId: col.string(),
-    granteeId: col.string()
-  }).index("grants_by_owner_grantee", ["ownerId", "granteeId"])
-});
-var shareableDiagramsPermissions = definePermissions(
-  shareableDiagramsApp,
-  ({ anyOf: anyOf2, policy, session }) => {
-    policy.documents.allowRead.always();
-    policy.documents.allowInsert.where({ ownerId: session.user_id });
-    policy.documents.allowUpdate.where(
-      (row) => anyOf2([
-        { ownerId: session.user_id },
-        policy.exists(
-          policy.documentWriteGrants.where({
-            ownerId: row.ownerId,
-            granteeId: session.user_id
-          })
-        )
-      ])
-    );
-    policy.documents.allowDelete.where(
-      (row) => anyOf2([
-        { ownerId: session.user_id },
-        policy.exists(
-          policy.documentWriteGrants.where({
-            ownerId: row.ownerId,
-            granteeId: session.user_id
-          })
-        )
-      ])
-    );
-    policy.documentWriteGrants.allowRead.where({ ownerId: session.user_id });
-    policy.documentWriteGrants.allowInsert.where({ ownerId: session.user_id });
-    policy.documentWriteGrants.allowDelete.where({ ownerId: session.user_id });
-  }
-);
-
-// skills/share-diagram/scripts/identity-store.src.mjs
-import { chmodSync, mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { homedir } from "node:os";
-
 // src/lib/sharedConfig.ts
 var DEFAULT_SHARE_BASE_URL = "https://gdorsi.github.io/shareable-diagrams/";
 var DEFAULT_GRANT_SERVICE_URL = "http://127.0.0.1:43110";
@@ -11943,6 +11898,15 @@ function resolveSharedConfig(env) {
     grantServiceUrl: env.SHARE_DIAGRAM_GRANT_SERVICE_URL ?? env.VITE_SHARE_DIAGRAM_GRANT_SERVICE_URL ?? DEFAULT_GRANT_SERVICE_URL,
     grantCodeTtlMs: GRANT_CODE_TTL_MS
   };
+}
+function isApprovedGrantOrigin(origin) {
+  if (origin === "https://gdorsi.github.io") return true;
+  try {
+    const url = new URL(origin);
+    return url.protocol === "http:" && (url.hostname === "localhost" || url.hostname === "127.0.0.1");
+  } catch {
+    return false;
+  }
 }
 
 // skills/share-diagram/scripts/identity-store.src.mjs
@@ -12109,75 +12073,306 @@ function persistState(state) {
     state.persist();
   }
 }
-function issueGrantCode({ ownerId, ttlMs = GRANT_CODE_TTL_MS, now = () => Date.now(), state }) {
-  if (typeof ownerId !== "string" || !ownerId) {
-    throw new Error("ownerId is required");
+function findRecordByCodeHash(state, codeHash) {
+  return state.records.find((entry) => entry && entry.codeHash === codeHash) ?? null;
+}
+function validateAvailableRecord(record, now) {
+  if (!record) {
+    throw new Error("grant code not found");
+  }
+  if (record.usedAt != null) {
+    throw new Error("grant code already used");
+  }
+  if (record.reservationId) {
+    throw new Error("grant code already reserved");
+  }
+  if (record.expiresAt <= now) {
+    throw new Error("grant code expired");
+  }
+}
+function reserveGrantCode({ code, now = () => Date.now(), state }) {
+  if (typeof code !== "string" || !code) {
+    throw new Error("code is required");
   }
   const grantState = ensureState(state);
-  const issuedAt = now();
-  const code = randomBytes(32).toString("base64url");
-  grantState.records.push({
-    codeHash: sha256Hex(code),
-    ownerId,
-    issuedAt,
-    expiresAt: issuedAt + ttlMs,
-    usedAt: null
-  });
+  const codeHash = sha256Hex(code);
+  const record = findRecordByCodeHash(grantState, codeHash);
+  const nowMs = now();
+  validateAvailableRecord(record, nowMs);
+  record.reservedAt = nowMs;
+  record.reservationId = randomUUID();
   persistState(grantState);
-  return code;
+  return {
+    codeHash: record.codeHash,
+    ownerId: record.ownerId,
+    issuedAt: record.issuedAt,
+    expiresAt: record.expiresAt,
+    reservedAt: record.reservedAt,
+    reservationId: record.reservationId
+  };
+}
+function finalizeGrantCode({ reservation, state, now = () => Date.now() }) {
+  if (!reservation || typeof reservation !== "object") {
+    throw new Error("reservation is required");
+  }
+  const grantState = ensureState(state);
+  const record = findRecordByCodeHash(grantState, reservation.codeHash);
+  if (!record) {
+    throw new Error("grant code not found");
+  }
+  if (record.usedAt != null) {
+    throw new Error("grant code already used");
+  }
+  if (record.reservationId !== reservation.reservationId || record.reservationId == null) {
+    throw new Error("grant code reservation missing");
+  }
+  record.usedAt = now();
+  record.reservedAt = null;
+  record.reservationId = null;
+  persistState(grantState);
+  return {
+    ownerId: record.ownerId,
+    issuedAt: record.issuedAt,
+    expiresAt: record.expiresAt,
+    usedAt: record.usedAt
+  };
+}
+function releaseGrantCode({ reservation, state }) {
+  if (!reservation || typeof reservation !== "object") {
+    return false;
+  }
+  const grantState = ensureState(state);
+  const record = findRecordByCodeHash(grantState, reservation.codeHash);
+  if (!record || record.usedAt != null) {
+    return false;
+  }
+  if (record.reservationId !== reservation.reservationId) {
+    return false;
+  }
+  record.reservedAt = null;
+  record.reservationId = null;
+  persistState(grantState);
+  return true;
 }
 
-// skills/share-diagram/scripts/encode.src.mjs
-async function readStdin(stdin) {
-  const chunks = [];
-  for await (const chunk of stdin) {
-    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+// src/lib/schema.ts
+var shareableDiagramsApp = schema.defineApp({
+  documents: schema.table({
+    ownerId: col.string(),
+    content: col.string()
+  }).index("documents_by_owner", ["ownerId"]),
+  documentWriteGrants: schema.table({
+    ownerId: col.string(),
+    granteeId: col.string()
+  }).index("grants_by_owner_grantee", ["ownerId", "granteeId"])
+});
+var shareableDiagramsPermissions = definePermissions(
+  shareableDiagramsApp,
+  ({ anyOf: anyOf2, policy, session }) => {
+    policy.documents.allowRead.always();
+    policy.documents.allowInsert.where({ ownerId: session.user_id });
+    policy.documents.allowUpdate.where(
+      (row) => anyOf2([
+        { ownerId: session.user_id },
+        policy.exists(
+          policy.documentWriteGrants.where({
+            ownerId: row.ownerId,
+            granteeId: session.user_id
+          })
+        )
+      ])
+    );
+    policy.documents.allowDelete.where(
+      (row) => anyOf2([
+        { ownerId: session.user_id },
+        policy.exists(
+          policy.documentWriteGrants.where({
+            ownerId: row.ownerId,
+            granteeId: session.user_id
+          })
+        )
+      ])
+    );
+    policy.documentWriteGrants.allowRead.where({ ownerId: session.user_id });
+    policy.documentWriteGrants.allowInsert.where({ ownerId: session.user_id });
+    policy.documentWriteGrants.allowDelete.where({ ownerId: session.user_id });
   }
-  return Buffer.concat(chunks).toString("utf8");
+);
+
+// skills/share-diagram/scripts/grant-server.src.mjs
+function jsonResponse(status, payload, headers = {}) {
+  return new Response(JSON.stringify(payload), {
+    status,
+    headers: {
+      "content-type": "application/json; charset=utf-8",
+      ...headers
+    }
+  });
 }
-async function readMarkdown(argv = process.argv.slice(2), stdin = process.stdin) {
-  const raw = argv.includes("--raw");
-  const withGrant = argv.includes("--grant");
-  const filePath = argv.find((arg) => !arg.startsWith("--"));
-  const markdown = filePath ? readFileSync3(resolve(filePath), "utf8") : await readStdin(stdin);
-  if (!markdown.trim()) {
-    throw new Error("no markdown provided (via file arg or stdin)");
-  }
-  return { markdown, raw, withGrant };
-}
-async function publishMarkdown({
-  markdown,
-  raw,
-  withGrant,
-  deps = {
-    createScriptDb,
-    issueGrantCode
-  }
-}) {
-  const { createScriptDb: createDb2 = createScriptDb, issueGrantCode: issueGrantCodeFn = issueGrantCode } = deps;
-  const { db, ownerId, config } = await createDb2();
-  const inserted = db.insert(shareableDiagramsApp.documents, {
-    ownerId,
-    content: markdown
-  }).value;
-  const shareUrl = `${config.shareBaseUrl}?id=${inserted.id}`;
-  const grantUrl = withGrant ? `${shareUrl}#grantCode=${await issueGrantCodeFn({ ownerId })}` : null;
+function corsHeaders(origin) {
   return {
-    documentId: inserted.id,
-    shareUrl,
-    grantUrl,
-    rawOutput: raw ? inserted.id : shareUrl
+    "access-control-allow-origin": origin,
+    "access-control-allow-credentials": "true",
+    "access-control-allow-methods": "POST, OPTIONS",
+    "access-control-allow-headers": "content-type",
+    "access-control-allow-private-network": "true",
+    vary: "origin"
+  };
+}
+function isGrantRoute(request) {
+  const url = new URL(request.url);
+  return url.pathname === "/grant-access";
+}
+function getRequestOrigin(request) {
+  return request.headers.get("origin") ?? "";
+}
+async function readJsonBody(request) {
+  const text = await request.text();
+  if (!text.trim()) {
+    return null;
+  }
+  return JSON.parse(text);
+}
+function ensureApprovedOrigin(request) {
+  const origin = getRequestOrigin(request);
+  if (!origin || !isApprovedGrantOrigin(origin)) {
+    return {
+      ok: false,
+      origin,
+      response: jsonResponse(403, { error: "grant origin not approved" })
+    };
+  }
+  return { ok: true, origin };
+}
+function mapGrantCodeError(error) {
+  const message = error instanceof Error ? error.message : "grant request failed";
+  const status = message === "grant code already used" ? 409 : message === "grant code expired" ? 410 : message === "grant code already reserved" ? 409 : 400;
+  return { message, status };
+}
+function createGrantServer({ db }) {
+  if (!db || typeof db.upsertDurable !== "function") {
+    throw new Error("db with upsertDurable is required");
+  }
+  async function handle(request) {
+    if (!isGrantRoute(request)) {
+      return jsonResponse(404, { error: "not found" });
+    }
+    const originCheck = ensureApprovedOrigin(request);
+    if (!originCheck.ok) {
+      return originCheck.response;
+    }
+    if (request.method === "OPTIONS") {
+      return new Response(null, {
+        status: 204,
+        headers: corsHeaders(originCheck.origin)
+      });
+    }
+    let payload;
+    try {
+      payload = await readJsonBody(request);
+    } catch {
+      return jsonResponse(400, { error: "invalid grant request body" }, corsHeaders(originCheck.origin));
+    }
+    const browserUserId = payload && typeof payload.browserUserId === "string" ? payload.browserUserId : "";
+    const code = payload && typeof payload.code === "string" ? payload.code : "";
+    if (!browserUserId || !code) {
+      return jsonResponse(400, { error: "browserUserId and code are required" }, corsHeaders(originCheck.origin));
+    }
+    let reservation;
+    try {
+      reservation = reserveGrantCode({
+        code
+      });
+    } catch (error) {
+      const { message, status } = mapGrantCodeError(error);
+      return jsonResponse(status, { error: message }, corsHeaders(originCheck.origin));
+    }
+    const grantId = `grant:${reservation.ownerId}:${browserUserId}`;
+    try {
+      await db.upsertDurable(
+        shareableDiagramsApp.documentWriteGrants,
+        {
+          ownerId: reservation.ownerId,
+          granteeId: browserUserId
+        },
+        {
+          id: grantId
+        }
+      );
+      finalizeGrantCode({
+        reservation
+      });
+    } catch (error) {
+      releaseGrantCode({
+        reservation
+      });
+      const { message } = mapGrantCodeError(error);
+      return jsonResponse(500, { error: message }, corsHeaders(originCheck.origin));
+    }
+    return jsonResponse(
+      200,
+      {
+        ok: true,
+        id: grantId,
+        ownerId: reservation.ownerId,
+        browserUserId
+      },
+      corsHeaders(originCheck.origin)
+    );
+  }
+  async function listen(port = 43110, host = "127.0.0.1") {
+    const server = http.createServer((req, res) => {
+      void (async () => {
+        try {
+          const requestUrl = new URL(req.url ?? "/", `http://${req.headers.host ?? `${host}:${port}`}`);
+          const chunks = [];
+          for await (const chunk of req) {
+            chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+          }
+          const body = chunks.length ? Buffer.concat(chunks) : void 0;
+          const requestInit = {
+            method: req.method ?? "GET",
+            headers: req.headers
+          };
+          if (body) {
+            requestInit.body = body;
+            requestInit.duplex = "half";
+          }
+          const request = new Request(requestUrl, requestInit);
+          const response = await handle(request);
+          res.statusCode = response.status;
+          response.headers.forEach((value, key) => {
+            res.setHeader(key, value);
+          });
+          if (response.body) {
+            const buffer = Buffer.from(await response.arrayBuffer());
+            res.end(buffer);
+          } else {
+            res.end();
+          }
+        } catch (error) {
+          const message = error instanceof Error ? error.message : "grant service failed";
+          res.statusCode = 500;
+          res.setHeader("content-type", "application/json; charset=utf-8");
+          res.end(JSON.stringify({ error: message }));
+        }
+      })();
+    });
+    await new Promise((resolve) => {
+      server.listen(port, host, resolve);
+    });
+    return server;
+  }
+  return {
+    handle,
+    listen
   };
 }
 async function main() {
-  const { markdown, raw, withGrant } = await readMarkdown();
-  const result = await publishMarkdown({ markdown, raw, withGrant });
-  process.stdout.write(`${result.rawOutput}
-`);
-  if (result.grantUrl) {
-    process.stdout.write(`${result.grantUrl}
-`);
-  }
+  const { db } = await createScriptDb();
+  const grantServer = createGrantServer({ db });
+  await grantServer.listen(43110);
+  process.stdout.write("grant server listening on http://127.0.0.1:43110\n");
 }
 if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url) {
   main().catch((error) => {
@@ -12187,7 +12382,5 @@ if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url) 
   });
 }
 export {
-  main,
-  publishMarkdown,
-  readMarkdown
+  createGrantServer
 };

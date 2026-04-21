@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "build:skill": "esbuild skills/share-diagram/scripts/encode.src.mjs --bundle --platform=node --format=esm --target=node22 --outfile=skills/share-diagram/scripts/encode.mjs --loader:.wasm=binary --banner:js='const require=(await import(\"node:module\")).createRequire(import.meta.url);'",
+    "build:skill": "esbuild skills/share-diagram/scripts/encode.src.mjs --bundle --platform=node --format=esm --target=node22 --outfile=skills/share-diagram/scripts/encode.mjs --loader:.wasm=binary --banner:js='const require=(await import(\"node:module\")).createRequire(import.meta.url);' && esbuild skills/share-diagram/scripts/grant-server.src.mjs --bundle --platform=node --format=esm --target=node22 --outfile=skills/share-diagram/scripts/grant-server.mjs --loader:.wasm=binary --banner:js='const require=(await import(\"node:module\")).createRequire(import.meta.url);'",
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run"

@@ -1,70 +1,74 @@
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { startWorker } from 'jazz-tools/worker'
-import { createWorkerAccount } from 'jazz-run/createWorkerAccount'
-import { co, z, Group } from 'jazz-tools'
+import { pathToFileURL } from 'node:url'
+import { shareableDiagramsApp } from '../../../src/lib/schema.ts'
+import { createScriptDb } from './identity-store.src.mjs'
+import { issueGrantCode } from './grant-code-store.src.mjs'
 
-const BASE_URL = 'https://gdorsi.github.io/shareable-diagrams/'
-const JAZZ_API_KEY = 'shareable-diagrams@jazz.tools'
-const SYNC_SERVER = `wss://cloud.jazz.tools/?key=${JAZZ_API_KEY}`
-
-const MarkdownDoc = co.map({
-  content: z.string(),
-})
-
-async function readMarkdown() {
-  const args = process.argv.slice(2)
-  const rawFlag = args.indexOf('--raw') !== -1
-  const filePath = args.find((a) => a !== '--raw')
-
-  let markdown
-  if (filePath) {
-    markdown = readFileSync(resolve(filePath), 'utf-8')
-  } else {
-    const chunks = []
-    for await (const chunk of process.stdin) chunks.push(chunk)
-    markdown = Buffer.concat(chunks).toString('utf-8')
+async function readStdin(stdin) {
+  const chunks = []
+  for await (const chunk of stdin) {
+    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk))
   }
+
+  return Buffer.concat(chunks).toString('utf8')
+}
+
+export async function readMarkdown(argv = process.argv.slice(2), stdin = process.stdin) {
+  const raw = argv.includes('--raw')
+  const withGrant = argv.includes('--grant')
+  const filePath = argv.find((arg) => !arg.startsWith('--'))
+
+  const markdown = filePath ? readFileSync(resolve(filePath), 'utf8') : await readStdin(stdin)
 
   if (!markdown.trim()) {
-    process.stderr.write('Error: no markdown provided (via file arg or stdin)\n')
-    process.exit(1)
+    throw new Error('no markdown provided (via file arg or stdin)')
   }
 
-  return { markdown, rawFlag }
+  return { markdown, raw, withGrant }
 }
 
-async function main() {
-  const { markdown, rawFlag } = await readMarkdown()
+export async function publishMarkdown({
+  markdown,
+  raw,
+  withGrant,
+  deps = {
+    createScriptDb,
+    issueGrantCode,
+  },
+}) {
+  const { createScriptDb: createDb = createScriptDb, issueGrantCode: issueGrantCodeFn = issueGrantCode } =
+    deps
+  const { db, ownerId, config } = await createDb()
+  const inserted = db.insert(shareableDiagramsApp.documents, {
+    ownerId,
+    content: markdown,
+  }).value
 
-  const { accountID, agentSecret } = await createWorkerAccount({
-    name: 'shareable-diagram',
-    peer: SYNC_SERVER,
-  })
+  const shareUrl = `${config.shareBaseUrl}?id=${inserted.id}`
+  const grantUrl = withGrant ? `${shareUrl}#grantCode=${await issueGrantCodeFn({ ownerId })}` : null
 
-  const { shutdownWorker } = await startWorker({
-    syncServer: SYNC_SERVER,
-    accountID,
-    accountSecret: agentSecret,
-  })
-
-  const group = Group.create()
-  group.makePublic()
-  const doc = MarkdownDoc.create({ content: markdown }, { owner: group })
-  const id = doc.$jazz.id
-
-  await shutdownWorker()
-
-  if (rawFlag) {
-    process.stdout.write(id + '\n')
-  } else {
-    process.stdout.write(`${BASE_URL}?id=${id}\n`)
+  return {
+    documentId: inserted.id,
+    shareUrl,
+    grantUrl,
+    rawOutput: raw ? inserted.id : shareUrl,
   }
 }
 
-main()
-  .then(() => process.exit(0))
-  .catch((err) => {
-    process.stderr.write(`Error: ${err.stack ?? err.message ?? err}\n`)
+export async function main() {
+  const { markdown, raw, withGrant } = await readMarkdown()
+  const result = await publishMarkdown({ markdown, raw, withGrant })
+
+  process.stdout.write(`${result.rawOutput}\n`)
+  if (result.grantUrl) {
+    process.stdout.write(`${result.grantUrl}\n`)
+  }
+}
+
+if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url) {
+  main().catch((error) => {
+    process.stderr.write(`Error: ${error.stack ?? error.message ?? error}\n`)
     process.exit(1)
   })
+}
