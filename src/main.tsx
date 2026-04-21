@@ -19,7 +19,7 @@ function Root() {
         secret: auth.secret ?? undefined,
       }}
     >
-      <App />
+      <App auth={auth} />
     </JazzProvider>
   )
 }

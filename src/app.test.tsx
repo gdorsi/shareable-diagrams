@@ -7,6 +7,7 @@ import App from './App'
 const {
   mockUseAll,
   mockUseSession,
+  mockIdentitySettings,
   mockReadDocumentId,
   mockReadGrantCode,
   mockClearGrantCode,
@@ -18,6 +19,7 @@ const {
 } = vi.hoisted(() => ({
   mockUseAll: vi.fn(),
   mockUseSession: vi.fn(),
+  mockIdentitySettings: vi.fn(),
   mockReadDocumentId: vi.fn(),
   mockReadGrantCode: vi.fn(),
   mockClearGrantCode: vi.fn(),
@@ -59,6 +61,13 @@ vi.mock('./Viewer', () => ({
   ),
 }))
 
+vi.mock('./components/IdentitySettings', () => ({
+  default: (props: unknown) => {
+    mockIdentitySettings(props)
+    return <div data-testid="identity-settings" />
+  },
+}))
+
 vi.mock('./lib/schema', () => ({
   shareableDiagramsApp: {
     documents: {
@@ -78,6 +87,13 @@ vi.mock('./lib/localhostGrant', () => ({
 }))
 
 describe('App', () => {
+  const auth = {
+    secret: 'secret_123',
+    isLoading: false,
+    login: vi.fn(),
+    signOut: vi.fn(),
+  }
+
   afterEach(() => {
     cleanup()
   })
@@ -85,6 +101,8 @@ describe('App', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     window.history.replaceState(null, '', '/')
+    auth.login.mockResolvedValue(undefined)
+    auth.signOut.mockResolvedValue(undefined)
 
     limitSpy.mockReturnValue(query)
     selectSpy.mockReturnValue({ limit: limitSpy })
@@ -98,9 +116,10 @@ describe('App', () => {
   })
 
   test('renders the encoder when there is no document id in the URL', () => {
-    render(<App />)
+    render(<App auth={auth} />)
 
     expect(screen.getByTestId('encoder').textContent).toBe('new-document')
+    expect(mockIdentitySettings).toHaveBeenCalledWith({ auth })
     expect(whereSpy).not.toHaveBeenCalled()
   })
 
@@ -108,7 +127,7 @@ describe('App', () => {
     mockReadDocumentId.mockReturnValue('doc_loading')
     mockUseAll.mockReturnValue(undefined)
 
-    render(<App />)
+    render(<App auth={auth} />)
 
     expect(screen.getByText('Loading document...')).toBeTruthy()
     expect(whereSpy).toHaveBeenCalledWith({ id: 'doc_loading' })
@@ -121,7 +140,7 @@ describe('App', () => {
     mockReadDocumentId.mockReturnValue('doc_missing')
     mockUseAll.mockReturnValue([])
 
-    render(<App />)
+    render(<App auth={auth} />)
 
     expect(screen.getByText('Document not found')).toBeTruthy()
   })
@@ -137,7 +156,7 @@ describe('App', () => {
       },
     ])
 
-    render(<App />)
+    render(<App auth={auth} />)
 
     expect(screen.getByTestId('viewer').textContent).toBe('viewer:# Read only:true:idle:')
   })
@@ -153,7 +172,7 @@ describe('App', () => {
       },
     ])
 
-    render(<App />)
+    render(<App auth={auth} />)
 
     expect(screen.getByTestId('encoder').textContent).toBe('editor:doc_edit')
   })
@@ -161,7 +180,7 @@ describe('App', () => {
   test('grants script document access from the URL fragment and clears the hash', async () => {
     mockReadGrantCode.mockReturnValue('grant_abc123')
 
-    render(<App />)
+    render(<App auth={auth} />)
 
     await waitFor(() => {
       expect(mockGrantScriptDocumentAccess).toHaveBeenCalledWith({
@@ -195,7 +214,7 @@ describe('App', () => {
         }),
     )
 
-    render(<App />)
+    render(<App auth={auth} />)
 
     await waitFor(() => {
       expect(screen.getByTestId('viewer').textContent).toBe(
@@ -219,7 +238,7 @@ describe('App', () => {
     ])
     mockGrantScriptDocumentAccess.mockRejectedValue(new Error('Grant request expired'))
 
-    render(<App />)
+    render(<App auth={auth} />)
 
     await waitFor(() => {
       expect(screen.getByTestId('viewer').textContent).toBe(
@@ -248,7 +267,7 @@ describe('App', () => {
     )
     mockGrantScriptDocumentAccess.mockImplementation(() => new Promise(() => {}))
 
-    render(<App />)
+    render(<App auth={auth} />)
 
     expect(screen.getByTestId('encoder').textContent).toBe('new-document')
 

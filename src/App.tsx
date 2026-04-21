@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
-import { useAll, useSession } from 'jazz-tools/react'
+import { useAll, useSession, type LocalFirstAuth } from 'jazz-tools/react'
 import Encoder from './Encoder'
+import IdentitySettings from './components/IdentitySettings'
 import Viewer from './Viewer'
 import { grantScriptDocumentAccess } from './lib/localhostGrant'
 import { shareableDiagramsApp } from './lib/schema'
@@ -35,7 +36,15 @@ function readGrantErrorMessage(error: unknown): string {
   return 'Grant request failed'
 }
 
-export default function App() {
+type AppProps = {
+  auth: LocalFirstAuth
+}
+
+export default function App({ auth }: AppProps) {
+  return <AppBody auth={auth} />
+}
+
+function AppBody({ auth }: AppProps) {
   const session = useSession()
   const grantingKeyRef = useRef<string | null>(null)
   const [location, setLocation] = useState<DocumentLocation>(() => ({
@@ -155,34 +164,50 @@ export default function App() {
   }, [documentId, grantCode, session])
 
   if (!documentId) {
-    return <Encoder />
+    return (
+      <>
+        <IdentitySettings auth={auth} />
+        <Encoder />
+      </>
+    )
   }
 
   if (documents === undefined) {
-    return <div className="viewer-loading">Loading document...</div>
+    return (
+      <>
+        <IdentitySettings auth={auth} />
+        <div className="viewer-loading">Loading document...</div>
+      </>
+    )
   }
 
   const document = documents[0]
 
   if (!document) {
     return (
-      <div className="viewer-error">
-        <h2>Document not found</h2>
-        <p>This document does not exist or is not accessible.</p>
-        <a href={window.location.origin + window.location.pathname}>Create a new document</a>
-      </div>
+      <>
+        <IdentitySettings auth={auth} />
+        <div className="viewer-error">
+          <h2>Document not found</h2>
+          <p>This document does not exist or is not accessible.</p>
+          <a href={window.location.origin + window.location.pathname}>Create a new document</a>
+        </div>
+      </>
     )
   }
 
   if (document.$canEdit) {
     return (
-      <Encoder
-        document={{
-          id: document.id,
-          ownerId: document.ownerId,
-          content: document.content,
-        }}
-      />
+      <>
+        <IdentitySettings auth={auth} />
+        <Encoder
+          document={{
+            id: document.id,
+            ownerId: document.ownerId,
+            content: document.content,
+          }}
+        />
+      </>
     )
   }
 
@@ -207,11 +232,14 @@ export default function App() {
   }
 
   return (
-    <Viewer
-      content={document.content}
-      canRequestGrant={canRequestGrant}
-      grantStatus={viewerGrantStatus}
-      grantError={viewerGrantError}
-    />
+    <>
+      <IdentitySettings auth={auth} />
+      <Viewer
+        content={document.content}
+        canRequestGrant={canRequestGrant}
+        grantStatus={viewerGrantStatus}
+        grantError={viewerGrantError}
+      />
+    </>
   )
 }
