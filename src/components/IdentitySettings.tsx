@@ -11,8 +11,22 @@ type IdentitySettingsProps = {
   auth: LocalFirstAuth
 }
 
+type Feedback = {
+  kind: 'success' | 'error'
+  text: string
+}
+
+function readErrorMessage(error: unknown, fallback: string): string {
+  if (error instanceof Error && error.message.trim()) {
+    return error.message.trim()
+  }
+
+  return fallback
+}
+
 export default function IdentitySettings({ auth }: IdentitySettingsProps) {
-  const [status, setStatus] = useState<string | null>(null)
+  const [feedback, setFeedback] = useState<Feedback | null>(null)
+  const [isPending, setIsPending] = useState(false)
   const client = createPasskeyBackupClient({
     appName: 'Shareable Diagrams Browser',
     appHostname: browserSharedConfig.passkeyRpId,
@@ -20,37 +34,70 @@ export default function IdentitySettings({ auth }: IdentitySettingsProps) {
   const canPromptForBackup = shouldPromptForPasskeyBackup(auth.secret)
 
   const handleBackup = async () => {
-    if (!auth.secret) {
+    if (!auth.secret || isPending) {
       return
     }
 
-    await client.backup(auth.secret, 'Shareable Diagrams Browser')
-    markPasskeyBackupCreated()
-    setStatus('Passkey backup saved')
+    setIsPending(true)
+    setFeedback(null)
+
+    try {
+      await client.backup(auth.secret, 'Shareable Diagrams Browser')
+      markPasskeyBackupCreated()
+      setFeedback({ kind: 'success', text: 'Passkey backup saved' })
+    } catch (error) {
+      setFeedback({
+        kind: 'error',
+        text: readErrorMessage(error, 'Passkey backup failed'),
+      })
+    } finally {
+      setIsPending(false)
+    }
   }
 
   const handleRestore = async () => {
-    const secret = await client.restore()
+    if (isPending) {
+      return
+    }
 
-    await auth.login(secret)
-    setStatus('Passkey restored')
+    setIsPending(true)
+    setFeedback(null)
+
+    try {
+      const secret = await client.restore()
+
+      await auth.login(secret)
+      markPasskeyBackupCreated()
+      setFeedback({ kind: 'success', text: 'Passkey restored' })
+    } catch (error) {
+      setFeedback({
+        kind: 'error',
+        text: readErrorMessage(error, 'Passkey restore failed'),
+      })
+    } finally {
+      setIsPending(false)
+    }
   }
 
   return (
     <section className="identity-settings" aria-label="Identity settings">
       <div className="identity-settings__actions">
         {canPromptForBackup ? (
-          <button type="button" onClick={handleBackup}>
+          <button type="button" onClick={handleBackup} disabled={isPending}>
             Back up passkey
           </button>
         ) : null}
-        <button type="button" onClick={handleRestore}>
+        <button type="button" onClick={handleRestore} disabled={isPending}>
           Restore passkey
         </button>
       </div>
-      {status ? (
-        <p className="identity-settings__status" aria-live="polite">
-          {status}
+      {feedback ? (
+        <p
+          className="identity-settings__status"
+          aria-live={feedback.kind === 'error' ? 'assertive' : 'polite'}
+          role={feedback.kind === 'error' ? 'alert' : undefined}
+        >
+          {feedback.text}
         </p>
       ) : null}
     </section>
