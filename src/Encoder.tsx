@@ -16,6 +16,7 @@ const plugins = [
 ]
 
 const components = { mermaid: Mermaid }
+const UPDATE_DEBOUNCE_MS = 300
 
 type DocumentRow = {
   id: string
@@ -44,8 +45,14 @@ export default function Encoder({ document }: { document?: DocumentRow } = {}) {
       return
     }
 
-    db.update(shareableDiagramsApp.documents, row.id, { content: markdown })
-    setRow({ ...row, content: markdown })
+    const timeoutId = window.setTimeout(() => {
+      db.update(shareableDiagramsApp.documents, row.id, { content: markdown })
+      setRow({ ...row, content: markdown })
+    }, UPDATE_DEBOUNCE_MS)
+
+    return () => {
+      window.clearTimeout(timeoutId)
+    }
   }, [db, markdown, row])
 
   const currentRow = row ?? document

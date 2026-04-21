@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import Encoder from './Encoder'
@@ -90,7 +90,8 @@ describe('Encoder', () => {
     expect(window.location.search).toBe('?id=doc_new')
   })
 
-  test('updates an existing document row when the markdown changes', async () => {
+  test('debounces updates to an existing document row by 300ms', async () => {
+    vi.useFakeTimers()
     const db = mockUseDb()
 
     render(
@@ -107,10 +108,18 @@ describe('Encoder', () => {
       target: { value: '# Updated' },
     })
 
-    await waitFor(() => {
-      expect(db.update).toHaveBeenCalledWith(expect.anything(), 'doc_existing', {
-        content: '# Updated',
-      })
+    expect(db.update).not.toHaveBeenCalled()
+
+    vi.advanceTimersByTime(299)
+    expect(db.update).not.toHaveBeenCalled()
+
+    vi.advanceTimersByTime(1)
+    expect(db.update).toHaveBeenCalledTimes(1)
+
+    expect(db.update).toHaveBeenCalledWith(expect.anything(), 'doc_existing', {
+      content: '# Updated',
     })
+
+    vi.useRealTimers()
   })
 })

@@ -5,7 +5,6 @@ import { Mermaid } from '@comark/react/plugins/mermaid'
 import highlight from '@comark/react/plugins/highlight'
 import githubLight from '@shikijs/themes/github-light'
 import githubDark from '@shikijs/themes/github-dark'
-import { readGrantCode } from './lib/urlState'
 
 const plugins = [
   mermaid(),
@@ -14,20 +13,41 @@ const plugins = [
 
 const components = { mermaid: Mermaid }
 
+type GrantStatus = 'idle' | 'pending' | 'failed' | 'succeeded'
+
 export default function Viewer({
   content,
   canRequestGrant,
+  grantStatus = 'idle',
+  grantError = null,
 }: {
   content: string
   canRequestGrant: boolean
+  grantStatus?: GrantStatus
+  grantError?: string | null
 }) {
   const [copied, setCopied] = useState<'markdown' | 'url' | null>(null)
-  const grantCode = readGrantCode()
 
   const handleCopy = async (text: string, kind: 'markdown' | 'url') => {
     await navigator.clipboard.writeText(text)
     setCopied(kind)
     setTimeout(() => setCopied(null), 2000)
+  }
+
+  let statusMessage: string | null = null
+
+  if (canRequestGrant) {
+    if (grantStatus === 'pending') {
+      statusMessage = 'Grant link detected. Requesting edit access...'
+    } else if (grantStatus === 'failed') {
+      statusMessage = grantError
+        ? `Grant request failed: ${grantError}`
+        : 'Grant request failed. Ask the owner for a new grant link.'
+    } else if (grantStatus === 'succeeded') {
+      statusMessage = 'Edit access granted. Waiting for document permissions to refresh...'
+    } else {
+      statusMessage = 'This document is read-only. Ask the owner for a grant link if you need edit access.'
+    }
   }
 
   return (
@@ -46,11 +66,7 @@ export default function Viewer({
           {copied === 'url' ? 'Copied!' : 'Copy Share URL'}
         </button>
       </div>
-      {canRequestGrant && !grantCode ? (
-        <p className="viewer-note">
-          This document is read-only. Ask the owner for a grant link if you need edit access.
-        </p>
-      ) : null}
+      {statusMessage ? <p className="viewer-note">{statusMessage}</p> : null}
       <div className="viewer-content">
         <ComarkClient plugins={plugins} components={components}>
           {content}

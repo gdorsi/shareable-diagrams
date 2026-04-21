@@ -18,6 +18,23 @@ type QueriedDocument = {
   $canEdit: boolean
 }
 
+type GrantStatus = 'idle' | 'pending' | 'failed' | 'succeeded'
+
+type GrantRequestState = {
+  code: string | null
+  documentId: string | null
+  error: string | null
+  status: GrantStatus
+}
+
+function readGrantErrorMessage(error: unknown): string {
+  if (error instanceof Error && error.message.trim()) {
+    return error.message.trim()
+  }
+
+  return 'Grant request failed'
+}
+
 export default function App() {
   const session = useSession()
   const grantingKeyRef = useRef<string | null>(null)
@@ -25,6 +42,12 @@ export default function App() {
     hash: window.location.hash,
     search: window.location.search,
   }))
+  const [grantRequest, setGrantRequest] = useState<GrantRequestState>({
+    code: null,
+    documentId: null,
+    error: null,
+    status: 'idle',
+  })
 
   useEffect(() => {
     const updateLocation = () => {
@@ -71,6 +94,22 @@ export default function App() {
   useEffect(() => {
     if (!grantCode) {
       grantingKeyRef.current = null
+      setGrantRequest((current) => {
+        if (current.status === 'succeeded') {
+          return current
+        }
+
+        if (current.status === 'idle' && current.documentId === documentId) {
+          return current
+        }
+
+        return {
+          code: null,
+          documentId,
+          error: null,
+          status: 'idle',
+        }
+      })
       return
     }
 
@@ -84,6 +123,12 @@ export default function App() {
     }
 
     grantingKeyRef.current = grantingKey
+    setGrantRequest({
+      code: grantCode,
+      documentId,
+      error: null,
+      status: 'pending',
+    })
 
     void (async () => {
       try {
@@ -91,13 +136,23 @@ export default function App() {
           browserUserId: session.user_id,
           code: grantCode,
         })
+        setGrantRequest({
+          code: grantCode,
+          documentId,
+          error: null,
+          status: 'succeeded',
+        })
         clearGrantCode()
       } catch (error) {
-        grantingKeyRef.current = null
-        console.error(error)
+        setGrantRequest({
+          code: grantCode,
+          documentId,
+          error: readGrantErrorMessage(error),
+          status: 'failed',
+        })
       }
     })()
-  }, [grantCode, session])
+  }, [documentId, grantCode, session])
 
   if (!documentId) {
     return <Encoder />
@@ -131,10 +186,32 @@ export default function App() {
     )
   }
 
+  const canRequestGrant = Boolean(session && session.user_id !== document.ownerId)
+  const activeGrantState =
+    grantRequest.documentId === document.id ? grantRequest : null
+  let viewerGrantStatus: GrantStatus = 'idle'
+  let viewerGrantError: string | null = null
+
+  if (canRequestGrant) {
+    if (grantCode) {
+      viewerGrantStatus =
+        activeGrantState?.code === grantCode ? activeGrantState.status : 'pending'
+      viewerGrantError =
+        activeGrantState?.code === grantCode ? activeGrantState.error : null
+    } else if (activeGrantState?.status === 'succeeded') {
+      viewerGrantStatus = 'succeeded'
+    } else if (activeGrantState?.status === 'failed') {
+      viewerGrantStatus = 'failed'
+      viewerGrantError = activeGrantState.error
+    }
+  }
+
   return (
     <Viewer
       content={document.content}
-      canRequestGrant={Boolean(session && session.user_id !== document.ownerId)}
+      canRequestGrant={canRequestGrant}
+      grantStatus={viewerGrantStatus}
+      grantError={viewerGrantError}
     />
   )
 }

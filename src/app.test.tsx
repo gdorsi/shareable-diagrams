@@ -45,12 +45,16 @@ vi.mock('./Viewer', () => ({
   default: ({
     content,
     canRequestGrant,
+    grantStatus,
+    grantError,
   }: {
     content: string
     canRequestGrant: boolean
+    grantStatus?: string
+    grantError?: string | null
   }) => (
     <div data-testid="viewer">
-      {`viewer:${content}:${String(canRequestGrant)}`}
+      {`viewer:${content}:${String(canRequestGrant)}:${grantStatus ?? 'idle'}:${grantError ?? ''}`}
     </div>
   ),
 }))
@@ -80,6 +84,7 @@ describe('App', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    window.history.replaceState(null, '', '/')
 
     limitSpy.mockReturnValue(query)
     selectSpy.mockReturnValue({ limit: limitSpy })
@@ -134,7 +139,7 @@ describe('App', () => {
 
     render(<App />)
 
-    expect(screen.getByTestId('viewer').textContent).toBe('viewer:# Read only:true')
+    expect(screen.getByTestId('viewer').textContent).toBe('viewer:# Read only:true:idle:')
   })
 
   test('renders the editor for a writable document row', () => {
@@ -167,6 +172,99 @@ describe('App', () => {
 
     await waitFor(() => {
       expect(mockClearGrantCode).toHaveBeenCalledTimes(1)
+    })
+  })
+
+  test('shows grant-in-progress state for a read-only document while access is being requested', async () => {
+    let releaseGrant = () => {}
+
+    mockReadDocumentId.mockReturnValue('doc_view')
+    mockReadGrantCode.mockReturnValue('grant_abc123')
+    mockUseAll.mockReturnValue([
+      {
+        id: 'doc_view',
+        ownerId: 'owner_456',
+        content: '# Read only',
+        $canEdit: false,
+      },
+    ])
+    mockGrantScriptDocumentAccess.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          releaseGrant = () => resolve()
+        }),
+    )
+
+    render(<App />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('viewer').textContent).toBe(
+        'viewer:# Read only:true:pending:',
+      )
+    })
+
+    releaseGrant()
+  })
+
+  test('shows a grant failure message for a read-only document when the request fails', async () => {
+    mockReadDocumentId.mockReturnValue('doc_view')
+    mockReadGrantCode.mockReturnValue('grant_bad')
+    mockUseAll.mockReturnValue([
+      {
+        id: 'doc_view',
+        ownerId: 'owner_456',
+        content: '# Read only',
+        $canEdit: false,
+      },
+    ])
+    mockGrantScriptDocumentAccess.mockRejectedValue(new Error('Grant request expired'))
+
+    render(<App />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('viewer').textContent).toBe(
+        'viewer:# Read only:true:failed:Grant request expired',
+      )
+    })
+  })
+
+  test('reacts to real window.history updates after mount', async () => {
+    const actualUrlState = await vi.importActual<typeof import('./lib/urlState')>('./lib/urlState')
+
+    mockReadDocumentId.mockImplementation(actualUrlState.readDocumentId)
+    mockReadGrantCode.mockImplementation(actualUrlState.readGrantCode)
+    mockClearGrantCode.mockImplementation(actualUrlState.clearGrantCode)
+    mockUseAll.mockImplementation((value) =>
+      value
+        ? [
+            {
+              id: 'doc_history',
+              ownerId: 'owner_456',
+              content: '# Via History',
+              $canEdit: false,
+            },
+          ]
+        : undefined,
+    )
+    mockGrantScriptDocumentAccess.mockImplementation(() => new Promise(() => {}))
+
+    render(<App />)
+
+    expect(screen.getByTestId('encoder').textContent).toBe('new-document')
+
+    window.history.replaceState(null, '', '/?id=doc_history#grantCode=grant_history')
+
+    await waitFor(() => {
+      expect(screen.getByTestId('viewer').textContent).toBe(
+        'viewer:# Via History:true:pending:',
+      )
+    })
+
+    await waitFor(() => {
+      expect(mockGrantScriptDocumentAccess).toHaveBeenCalledWith({
+        browserUserId: 'user_123',
+        code: 'grant_history',
+      })
     })
   })
 })
