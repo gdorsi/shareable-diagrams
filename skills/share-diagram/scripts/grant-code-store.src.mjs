@@ -8,7 +8,7 @@ import {
 } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { homedir } from 'node:os'
-import { createHash, randomBytes } from 'node:crypto'
+import { createHash, randomBytes, randomUUID } from 'node:crypto'
 import { GRANT_CODE_TTL_MS } from '../../../src/lib/sharedConfig.ts'
 
 function getGrantCodeStoreDir() {
@@ -43,13 +43,27 @@ function sha256Hex(value) {
   return createHash('sha256').update(value).digest('hex')
 }
 
+function normalizeRecord(record) {
+  return {
+    codeHash: typeof record.codeHash === 'string' ? record.codeHash : '',
+    ownerId: typeof record.ownerId === 'string' ? record.ownerId : '',
+    issuedAt: Number.isFinite(record.issuedAt) ? record.issuedAt : 0,
+    expiresAt: Number.isFinite(record.expiresAt) ? record.expiresAt : 0,
+    usedAt: Number.isFinite(record.usedAt) ? record.usedAt : null,
+    reservedAt: Number.isFinite(record.reservedAt) ? record.reservedAt : null,
+    reservationId: typeof record.reservationId === 'string' ? record.reservationId : null,
+  }
+}
+
 function readGrantCodeStateFile() {
   try {
     const raw = readFileSync(getGrantCodeStorePath(), 'utf8')
     const parsed = JSON.parse(raw)
 
     if (parsed && typeof parsed === 'object' && Array.isArray(parsed.records)) {
-      return parsed.records.filter((record) => record && typeof record === 'object')
+      return parsed.records
+        .filter((record) => record && typeof record === 'object')
+        .map(normalizeRecord)
     }
   } catch (error) {
     if (error && typeof error === 'object' && error.code === 'ENOENT') {
@@ -62,7 +76,10 @@ function readGrantCodeStateFile() {
 }
 
 function writeGrantCodeStateFile(records) {
-  atomicWriteFile(getGrantCodeStorePath(), `${JSON.stringify({ records }, null, 2)}\n`)
+  atomicWriteFile(
+    getGrantCodeStorePath(),
+    `${JSON.stringify({ records: records.map(normalizeRecord) }, null, 2)}\n`,
+  )
 }
 
 function ensureState(state) {
@@ -88,6 +105,109 @@ function persistState(state) {
   }
 }
 
+function findRecordByCodeHash(state, codeHash) {
+  return state.records.find((entry) => entry && entry.codeHash === codeHash) ?? null
+}
+
+function validateAvailableRecord(record, now) {
+  if (!record) {
+    throw new Error('grant code not found')
+  }
+
+  if (record.usedAt != null) {
+    throw new Error('grant code already used')
+  }
+
+  if (record.reservationId) {
+    throw new Error('grant code already reserved')
+  }
+
+  if (record.expiresAt <= now) {
+    throw new Error('grant code expired')
+  }
+}
+
+export function reserveGrantCode({ code, now = () => Date.now(), state }) {
+  if (typeof code !== 'string' || !code) {
+    throw new Error('code is required')
+  }
+
+  const grantState = ensureState(state)
+  const codeHash = sha256Hex(code)
+  const record = findRecordByCodeHash(grantState, codeHash)
+  const nowMs = now()
+
+  validateAvailableRecord(record, nowMs)
+
+  record.reservedAt = nowMs
+  record.reservationId = randomUUID()
+  persistState(grantState)
+
+  return {
+    codeHash: record.codeHash,
+    ownerId: record.ownerId,
+    issuedAt: record.issuedAt,
+    expiresAt: record.expiresAt,
+    reservedAt: record.reservedAt,
+    reservationId: record.reservationId,
+  }
+}
+
+export function finalizeGrantCode({ reservation, state, now = () => Date.now() }) {
+  if (!reservation || typeof reservation !== 'object') {
+    throw new Error('reservation is required')
+  }
+
+  const grantState = ensureState(state)
+  const record = findRecordByCodeHash(grantState, reservation.codeHash)
+
+  if (!record) {
+    throw new Error('grant code not found')
+  }
+
+  if (record.usedAt != null) {
+    throw new Error('grant code already used')
+  }
+
+  if (record.reservationId !== reservation.reservationId || record.reservationId == null) {
+    throw new Error('grant code reservation missing')
+  }
+
+  record.usedAt = now()
+  record.reservedAt = null
+  record.reservationId = null
+  persistState(grantState)
+
+  return {
+    ownerId: record.ownerId,
+    issuedAt: record.issuedAt,
+    expiresAt: record.expiresAt,
+    usedAt: record.usedAt,
+  }
+}
+
+export function releaseGrantCode({ reservation, state }) {
+  if (!reservation || typeof reservation !== 'object') {
+    return false
+  }
+
+  const grantState = ensureState(state)
+  const record = findRecordByCodeHash(grantState, reservation.codeHash)
+
+  if (!record || record.usedAt != null) {
+    return false
+  }
+
+  if (record.reservationId !== reservation.reservationId) {
+    return false
+  }
+
+  record.reservedAt = null
+  record.reservationId = null
+  persistState(grantState)
+  return true
+}
+
 export function issueGrantCode({ ownerId, ttlMs = GRANT_CODE_TTL_MS, now = () => Date.now(), state }) {
   if (typeof ownerId !== 'string' || !ownerId) {
     throw new Error('ownerId is required')
@@ -109,33 +229,12 @@ export function issueGrantCode({ ownerId, ttlMs = GRANT_CODE_TTL_MS, now = () =>
 }
 
 export function consumeGrantCode({ code, now = () => Date.now(), state }) {
-  if (typeof code !== 'string' || !code) {
-    throw new Error('code is required')
-  }
+  const reservation = reserveGrantCode({ code, now, state })
 
-  const grantState = ensureState(state)
-  const codeHash = sha256Hex(code)
-  const record = grantState.records.find((entry) => entry.codeHash === codeHash)
-
-  if (!record) {
-    throw new Error('grant code not found')
-  }
-
-  if (record.usedAt != null) {
-    throw new Error('grant code already used')
-  }
-
-  if (record.expiresAt <= now()) {
-    throw new Error('grant code expired')
-  }
-
-  record.usedAt = now()
-  persistState(grantState)
-
-  return {
-    ownerId: record.ownerId,
-    issuedAt: record.issuedAt,
-    expiresAt: record.expiresAt,
-    usedAt: record.usedAt,
+  try {
+    return finalizeGrantCode({ reservation, state, now })
+  } catch (error) {
+    releaseGrantCode({ reservation, state })
+    throw error
   }
 }

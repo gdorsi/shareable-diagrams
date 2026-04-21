@@ -1,7 +1,11 @@
 import http from 'node:http'
 import { pathToFileURL } from 'node:url'
 import { createScriptDb } from './identity-store.src.mjs'
-import { consumeGrantCode } from './grant-code-store.src.mjs'
+import {
+  finalizeGrantCode,
+  releaseGrantCode,
+  reserveGrantCode,
+} from './grant-code-store.src.mjs'
 import { isApprovedGrantOrigin } from '../../../src/lib/sharedConfig.ts'
 import { shareableDiagramsApp } from '../../../src/lib/schema.ts'
 
@@ -57,6 +61,20 @@ function ensureApprovedOrigin(request) {
   return { ok: true, origin }
 }
 
+function mapGrantCodeError(error) {
+  const message = error instanceof Error ? error.message : 'grant request failed'
+  const status =
+    message === 'grant code already used'
+      ? 409
+      : message === 'grant code expired'
+        ? 410
+        : message === 'grant code already reserved'
+          ? 409
+          : 400
+
+  return { message, status }
+}
+
 export function createGrantServer({ db }) {
   if (!db || typeof db.upsertDurable !== 'function') {
     throw new Error('db with upsertDurable is required')
@@ -93,40 +111,47 @@ export function createGrantServer({ db }) {
       return jsonResponse(400, { error: 'browserUserId and code are required' }, corsHeaders(originCheck.origin))
     }
 
-    let grant
+    let reservation
     try {
-      grant = consumeGrantCode({
+      reservation = reserveGrantCode({
         code,
       })
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'grant request failed'
-      const status =
-        message === 'grant code already used'
-          ? 409
-          : message === 'grant code expired'
-            ? 410
-            : 400
+      const { message, status } = mapGrantCodeError(error)
       return jsonResponse(status, { error: message }, corsHeaders(originCheck.origin))
     }
 
-    const grantId = `grant:${grant.ownerId}:${browserUserId}`
-    await db.upsertDurable(
-      shareableDiagramsApp.documentWriteGrants,
-      {
-        ownerId: grant.ownerId,
-        granteeId: browserUserId,
-      },
-      {
-        id: grantId,
-      },
-    )
+    const grantId = `grant:${reservation.ownerId}:${browserUserId}`
+
+    try {
+      await db.upsertDurable(
+        shareableDiagramsApp.documentWriteGrants,
+        {
+          ownerId: reservation.ownerId,
+          granteeId: browserUserId,
+        },
+        {
+          id: grantId,
+        },
+      )
+
+      finalizeGrantCode({
+        reservation,
+      })
+    } catch (error) {
+      releaseGrantCode({
+        reservation,
+      })
+      const { message } = mapGrantCodeError(error)
+      return jsonResponse(500, { error: message }, corsHeaders(originCheck.origin))
+    }
 
     return jsonResponse(
       200,
       {
         ok: true,
         id: grantId,
-        ownerId: grant.ownerId,
+        ownerId: reservation.ownerId,
         browserUserId,
       },
       corsHeaders(originCheck.origin),

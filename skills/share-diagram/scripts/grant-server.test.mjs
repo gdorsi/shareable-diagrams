@@ -197,4 +197,34 @@ describe('grant server', () => {
       },
     )
   })
+
+  test('releases a reserved grant code when durable write rejects', async () => {
+    const db = {
+      upsertDurable: vi.fn().mockRejectedValue(new Error('durable write failed')),
+    }
+    const server = createGrantServer({ db })
+    const code = issueGrantCode({ ownerId: 'owner-123' })
+
+    const response = await server.handle(
+      new Request('http://127.0.0.1:43110/grant-access', {
+        method: 'POST',
+        headers: {
+          origin: 'https://gdorsi.github.io',
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          browserUserId: 'browser-1',
+          code,
+        }),
+      }),
+    )
+
+    expect(response.status).toBe(500)
+    await expect(response.text()).resolves.toContain('durable write failed')
+    expect(db.upsertDurable).toHaveBeenCalledTimes(1)
+
+    const consumed = consumeGrantCode({ code })
+    expect(consumed.ownerId).toBe('owner-123')
+    expect(() => consumeGrantCode({ code })).toThrow('grant code already used')
+  })
 })
